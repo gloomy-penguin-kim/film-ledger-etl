@@ -1022,7 +1022,6 @@ class ImdbClient:
           "goof_items": goof_items
 
       }
- 
 
   def get_streaming_availability(self, title_id):
       """Get streaming availability for a single title ID"""
@@ -1111,7 +1110,6 @@ class ImdbClient:
           provider_category = category.get("categoryName", {}).get("value")
           options = category.get("watchOptions", []) 
 
-
           for option in options:
               
               provider_code = (option.get("provider") or {}).get("id", {})
@@ -1141,6 +1139,34 @@ class ImdbClient:
           print(f"Error: {response.status_code}")
           print(f"Response: {response.text}")
           return None
+
+  def upsert_image_assets(self, media_id, media):
+      dims = media.get("image_dimensions") or {}
+      source_url = media.get("poster_url")
+
+      if not source_url:
+        return {
+            "media_id": media_id,
+            "image_kind": "poster",
+            "image_size": "original",
+            "source_provider": "imdb" if media.get("imdb_url") else None,
+            "source_url": None,
+            "width": dims.get("width"),
+            "height": dims.get("height"),
+            "status": "skipped",
+            "error_message": "No poster_url found",
+        }
+
+      return {
+        "media_id": media["id"],
+        "image_kind": "poster",
+        "image_size": "original",
+        "source_provider": "imdb" if media.get("imdb_url") else "unknown",
+        "source_url": source_url,
+        "width": dims.get("width"),
+        "height": dims.get("height"),
+        "status": "pending",
+      }
 
   # def save_trending_data(data, filename):
   #     """Save trending data to JSON file"""

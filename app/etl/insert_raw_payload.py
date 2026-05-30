@@ -1,37 +1,51 @@
-
-#     raw_id = save_raw_payload(
-#         source="imdb_trending",
-#         source_key=date.today().isoformat(),
-#         payload=payload,
-#     )
-
-# CREATE TABLE IF NOT EXISTS raw_imdb_payloads (
-#     id BIGSERIAL PRIMARY KEY,
-#     source TEXT NOT NULL,
-#     source_key TEXT NOT NULL,
-#     payload JSONB NOT NULL,
-#     fetched_at TIMESTAMPTZ DEFAULT now(),
-#     processed_at TIMESTAMPTZ,
-#     status TEXT DEFAULT 'new'
-# );
-
 def update_movie(conn, movie_id: str):
     """
     Retrieve if the movie has been updated in the last 6 months. Returns the id if found, otherwise None.
+    UNLESS - if there is now an image for it
     """
     sql = """
-    SELECT   media_id
-    FROM     media 
-    WHERE    (updated_at >= NOW() - INTERVAL '2 months' and (media_release_date IS NULL or media_release_date >= NOW() - INTERVAL '18 months')) 
-             OR (updated_at >= NOW() - INTERVAL '6 months')
-    AND      media_imdb_id = %s
-    """
+            SELECT
+                m.media_id,
+            
+                (
+                  m.updated_at < now() - interval '2 months'
+                  AND (
+                        m.media_release_year IS NULL
+                        OR m.media_release_date >= current_date - interval '18 months'
+                      )
+                ) OR (
+                  m.updated_at < now() - interval '6 months'
+                ) AS needs_a_refresh,
+            
+                NOT EXISTS (
+                  SELECT 1
+                  FROM media_image_asset mia
+                  JOIN image_asset ia
+                    ON ia.image_asset_id = mia.image_asset_id
+                  WHERE mia.media_id = m.media_id
+                    AND mia.image_kind = 'poster'
+                    AND ia.status = 'cached'
+                ) AS missing_image
+            
+            FROM media m
+            WHERE m.media_imdb_id = %s
+              AND m.updated_at = (
+                  SELECT max(mm.updated_at)
+                  FROM media mm
+                  WHERE mm.media_imdb_id = m.media_imdb_id
+              );
+          """
     try:
-        result = conn.execute(sql, (movie_id,))  
-        return False if result else True  
+        with conn.execute(sql, (movie_id,)) as cur:
+            if cur.description:
+                columns = [desc[0] for desc in cur.description]
+                results = [dict(zip(columns, row)) for row in cur.fetchall()]
+                return results[0]
+            return None, True, True
+
     except Exception as e:
-        print(f"Error retrieving last updated timestamp for movie {movie_id}: {e}")
-        return True
+        print(f"Error retrieving update info for movie {movie_id}: {e}")
+        return None, True, True
 
 
 def get_last_processed_payload(conn, source: str, version: int):

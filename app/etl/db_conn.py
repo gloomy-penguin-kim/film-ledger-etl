@@ -9,8 +9,9 @@ class DatabaseConn:
 
     def __init__(self, conn=None):
         self.conn = conn
-        self.connect() 
-        self._create_default_schema()
+        self.connect()
+        if os.getenv("RUN_SCHEMA_CHANGES") == "TRUE":
+            self._create_default_schema()
 
     def connect(self):
         if not self.conn: 
@@ -23,19 +24,22 @@ class DatabaseConn:
     def _create_default_schema(self):  
         """Create the raw_json table if it doesn't exist"""
         # Connect to your PostgreSQL database
-        if not os.path.exists("./app/etl/schema.sql"):
+        if not os.path.exists("./app/scripts/schema.sql"):
             raise FileNotFoundError("schema.sql file not found. Please ensure it exists in the current directory.")
         try: 
             with self.conn.cursor() as cur: 
-                with open("./app/etl/schema.sql", "r", encoding="utf-8") as file:
+                with open("./app/scripts/schema.sql", "r", encoding="utf-8") as file:
                     sql_script = file.read()
                 pieces = sql_script.split(";")
                 for piece in pieces: 
                     if piece.strip():
                         try:
                             cur.execute(piece)
+                            self.conn.commit()
                         except psycopg.Error as e:
                             print(f"Error executing SQL piece: {e}")
+                            print(f"Code: {piece}")
+                            quit()
                 print("Schema SQL script executed successfully!")
         except psycopg.Error as e: 
             print(f"Ignored database error: {e}") 
@@ -53,7 +57,6 @@ class DatabaseConn:
                     columns = [desc[0] for desc in cur.description] 
                     results = [dict(zip(columns, row)) for row in cur.fetchall()] 
                     return results
-                else: cur
         except psycopg.Error as e: 
             print(f"Database error: {e}") 
             self.conn.rollback()  
