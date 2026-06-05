@@ -1,4 +1,92 @@
 DROP VIEW IF EXISTS media_full_view;
+DROP VIEW IF EXISTS image_choice_media;
+DROP VIEW IF EXISTS image_choice_provider;
+
+CREATE OR REPLACE VIEW image_choice_media AS
+SELECT
+    ial.owner_id AS media_id,
+    ial.image_kind,
+    ial.is_primary,
+    ial.sort_order,
+
+    ia.image_asset_id,
+    ia.source_provider,
+    ia.source_url,
+    ia.source_width,
+    ia.source_height,
+    ia.status AS asset_status,
+
+    iv.image_variant_id,
+    iv.public_url,
+    iv.object_key,
+    iv.storage_provider,
+    iv.storage_bucket,
+    iv.content_type,
+    iv.width,
+    iv.height,
+    iv.byte_size,
+    iv.sha256,
+    iv.status AS variant_status,
+    iv.cached_at,
+
+    v.variant_id,
+    v.variant_key,
+    v.target_width,
+    v.target_height,
+    v.is_cropped
+
+FROM image_asset_link ial
+JOIN image_asset ia
+    ON ia.image_asset_id = ial.image_asset_id
+LEFT JOIN image_variant iv
+    ON iv.image_asset_id = ia.image_asset_id
+LEFT JOIN variant v
+    ON v.variant_id = iv.variant_id
+WHERE ial.owner_type = 'media';
+
+
+CREATE OR REPLACE VIEW image_choice_provider AS
+SELECT
+    ial.owner_id AS provider_id,
+    ial.image_kind,
+    ial.is_primary,
+    ial.sort_order,
+
+    ia.image_asset_id,
+    ia.source_provider,
+    ia.source_url,
+    ia.source_width,
+    ia.source_height,
+    ia.status AS asset_status,
+
+    iv.image_variant_id,
+    iv.public_url,
+    iv.object_key,
+    iv.storage_provider,
+    iv.storage_bucket,
+    iv.content_type,
+    iv.width,
+    iv.height,
+    iv.byte_size,
+    iv.sha256,
+    iv.status AS variant_status,
+    iv.cached_at,
+
+    v.variant_id,
+    v.variant_key,
+    v.target_width,
+    v.target_height,
+    v.is_cropped
+
+FROM image_asset_link ial
+JOIN image_asset ia
+    ON ia.image_asset_id = ial.image_asset_id
+LEFT JOIN image_variant iv
+    ON iv.image_asset_id = ia.image_asset_id
+LEFT JOIN variant v
+    ON v.variant_id = iv.variant_id
+WHERE ial.owner_type = 'provider';
+
 
 CREATE OR REPLACE VIEW media_full_view AS
 SELECT
@@ -14,48 +102,43 @@ SELECT
   m.media_plot,
 
   COALESCE(
-    CASE
-      WHEN poster.status = 'cached' THEN poster.public_url
-      ELSE NULL
-    END,
+    CASE WHEN poster.variant_status = 'cached' THEN poster.public_url END,
     poster.public_url,
-    poster.source_url,
-    m.media_image
+    poster.source_url
   ) AS media_image,
 
-  COALESCE(poster.width, m.media_image_width) AS media_image_width,
-  COALESCE(poster.height, m.media_image_height) AS media_image_height,
+  COALESCE(poster.width, poster.source_width) AS media_image_width,
+  COALESCE(poster.height, poster.source_height) AS media_image_height,
 
   CASE
     WHEN poster.image_asset_id IS NULL THEN NULL
     ELSE jsonb_build_object(
       'image_asset_id', poster.image_asset_id,
+      'image_variant_id', poster.image_variant_id,
       'image_kind', poster.image_kind,
-      'variant', poster.variant,
+      'variant_id', poster.variant_id,
+      'variant_key', poster.variant_key,
       'source_provider', poster.source_provider,
       'source_url', poster.source_url,
+      'public_url', poster.public_url,
+      'object_key', poster.object_key,
       'storage_provider', poster.storage_provider,
       'storage_bucket', poster.storage_bucket,
-      'object_key', poster.object_key,
-      'public_url', poster.public_url,
       'content_type', poster.content_type,
       'width', poster.width,
       'height', poster.height,
       'byte_size', poster.byte_size,
       'sha256', poster.sha256,
-      'status', poster.status,
+      'asset_status', poster.asset_status,
+      'variant_status', poster.variant_status,
       'is_primary', poster.is_primary,
       'sort_order', poster.sort_order,
-      'last_checked_at', poster.last_checked_at,
       'cached_at', poster.cached_at
     )
   END AS poster_image_asset,
 
   COALESCE(
-    CASE
-      WHEN backdrop.status = 'cached' THEN backdrop.public_url
-      ELSE NULL
-    END,
+    CASE WHEN backdrop.variant_status = 'cached' THEN backdrop.public_url END,
     backdrop.public_url,
     backdrop.source_url
   ) AS backdrop_image,
@@ -64,177 +147,95 @@ SELECT
     WHEN backdrop.image_asset_id IS NULL THEN NULL
     ELSE jsonb_build_object(
       'image_asset_id', backdrop.image_asset_id,
+      'image_variant_id', backdrop.image_variant_id,
       'image_kind', backdrop.image_kind,
-      'variant', backdrop.variant,
-      'source_provider', backdrop.source_provider,
+      'variant_id', backdrop.variant_id,
+      'variant_key', backdrop.variant_key,
       'source_url', backdrop.source_url,
-      'storage_provider', backdrop.storage_provider,
-      'storage_bucket', backdrop.storage_bucket,
-      'object_key', backdrop.object_key,
       'public_url', backdrop.public_url,
-      'content_type', backdrop.content_type,
       'width', backdrop.width,
       'height', backdrop.height,
-      'byte_size', backdrop.byte_size,
-      'sha256', backdrop.sha256,
-      'status', backdrop.status,
+      'asset_status', backdrop.asset_status,
+      'variant_status', backdrop.variant_status,
       'is_primary', backdrop.is_primary,
-      'sort_order', backdrop.sort_order,
-      'last_checked_at', backdrop.last_checked_at,
-      'cached_at', backdrop.cached_at
+      'sort_order', backdrop.sort_order
     )
   END AS backdrop_image_asset,
 
   m.media_certificate,
   m.media_production_status,
 
-  COALESCE(
-    (
-      SELECT jsonb_agg(
-        jsonb_build_object(
-          'genre_id', g.genre_id,
-          'genre_name', g.genre_name
-        )
-        ORDER BY g.genre_name
+  COALESCE((
+    SELECT jsonb_agg(
+      jsonb_build_object(
+        'genre_id', g.genre_id,
+        'genre_name', g.genre_name
       )
-      FROM media_genre mg
-      JOIN genre g ON g.genre_id = mg.genre_id
-      WHERE mg.media_id = m.media_id
-    ),
-    '[]'::jsonb
-  ) AS genres,
+      ORDER BY g.genre_name
+    )
+    FROM media_genre mg
+    JOIN genre g ON g.genre_id = mg.genre_id
+    WHERE mg.media_id = m.media_id
+  ), '[]'::jsonb) AS genres,
 
-  COALESCE(
-    (
-      SELECT jsonb_agg(
-        jsonb_build_object(
-          'language_id', l.language_id,
-          'language_name', l.language_name
-        )
-        ORDER BY l.language_name
+  COALESCE((
+    SELECT jsonb_agg(
+      jsonb_build_object(
+        'provider_id', pr.provider_id,
+        'provider_code', pr.provider_code,
+        'provider_name', pr.provider_name,
+        'provider_title', pr.provider_title,
+        'provider_title_alt', pr.provider_title_alt,
+        'provider_category', pr.provider_category,
+        'provider_desc', mpv.provider_desc,
+        'provider_link', mpv.provider_link,
+
+        'provider_image', COALESCE(
+          CASE WHEN provider_logo.variant_status = 'cached' THEN provider_logo.public_url END,
+          provider_logo.public_url,
+          provider_logo.source_url
+        ),
+
+        'provider_image_asset', CASE
+          WHEN provider_logo.image_asset_id IS NULL THEN NULL
+          ELSE jsonb_build_object(
+            'image_asset_id', provider_logo.image_asset_id,
+            'image_variant_id', provider_logo.image_variant_id,
+            'image_kind', provider_logo.image_kind,
+            'variant_id', provider_logo.variant_id,
+            'variant_key', provider_logo.variant_key,
+            'source_url', provider_logo.source_url,
+            'public_url', provider_logo.public_url,
+            'width', provider_logo.width,
+            'height', provider_logo.height,
+            'asset_status', provider_logo.asset_status,
+            'variant_status', provider_logo.variant_status
+          )
+        END
       )
-      FROM media_language ml
-      JOIN language l ON l.language_id = ml.language_id
-      WHERE ml.media_id = m.media_id
-    ),
-    '[]'::jsonb
-  ) AS languages,
+      ORDER BY pr.provider_category, pr.provider_name, pr.provider_title
+    )
+    FROM media_provider mpv
+    JOIN provider pr ON pr.provider_id = mpv.provider_id
 
-  COALESCE(
-    (
-      SELECT jsonb_agg(
-        jsonb_build_object(
-          'person_id', p.person_id,
-          'person_imdb_id', p.person_imdb_id,
-          'person_name', p.person_name,
-          'person_image', p.person_image,
-          'credit_category', mp.credit_category,
-          'character_names', COALESCE(to_jsonb(mp.character_names), '[]'::jsonb),
-          'enhanced_actor', mp.enhanced_actor
-        )
-        ORDER BY mp.credit_category, p.person_name
-      )
-      FROM media_person mp
-      JOIN person p ON p.person_id = mp.person_id
-      WHERE mp.media_id = m.media_id
-    ),
-    '[]'::jsonb
-  ) AS credits,
+    LEFT JOIN LATERAL (
+      SELECT *
+      FROM image_choice_provider primg
+      WHERE primg.provider_id = pr.provider_id
+        AND primg.image_kind IN ('provider_logo', 'logo')
+      ORDER BY
+        primg.is_primary DESC,
+        primg.sort_order ASC,
+        (primg.variant_status = 'cached') DESC,
+        (primg.public_url IS NOT NULL) DESC,
+        (primg.variant_key = 'provider_logo_150x225') DESC,
+        (primg.variant_key = 'provider_logo_original') DESC,
+        primg.cached_at DESC NULLS LAST
+      LIMIT 1
+    ) provider_logo ON TRUE
 
-  COALESCE(
-    (
-      SELECT jsonb_agg(
-        jsonb_build_object(
-          'keyword_id', k.keyword_id,
-          'keyword_name', k.keyword_name
-        )
-        ORDER BY k.keyword_name
-      )
-      FROM media_keyword mk
-      JOIN keyword k ON k.keyword_id = mk.keyword_id
-      WHERE mk.media_id = m.media_id
-    ),
-    '[]'::jsonb
-  ) AS keywords,
-
-  COALESCE(
-    (
-      SELECT jsonb_agg(
-        jsonb_build_object(
-          'provider_id', pr.provider_id,
-          'provider_code', pr.provider_code,
-          'provider_name', pr.provider_name,
-          'provider_title', pr.provider_title,
-          'provider_title_alt', pr.provider_title_alt,
-          'provider_category', pr.provider_category,
-          'provider_desc', mpv.provider_desc,
-          'provider_link', mpv.provider_link,
-
-          'provider_image', COALESCE(
-            CASE
-              WHEN provider_logo.status = 'cached' THEN provider_logo.public_url
-              ELSE NULL
-            END,
-            provider_logo.public_url,
-            provider_logo.source_url
-          ),
-
-          'provider_image_asset', CASE
-            WHEN provider_logo.image_asset_id IS NULL THEN NULL
-            ELSE jsonb_build_object(
-              'image_asset_id', provider_logo.image_asset_id,
-              'image_kind', provider_logo.image_kind,
-              'variant', provider_logo.variant,
-              'source_provider', provider_logo.source_provider,
-              'source_url', provider_logo.source_url,
-              'storage_provider', provider_logo.storage_provider,
-              'storage_bucket', provider_logo.storage_bucket,
-              'object_key', provider_logo.object_key,
-              'public_url', provider_logo.public_url,
-              'content_type', provider_logo.content_type,
-              'width', provider_logo.width,
-              'height', provider_logo.height,
-              'byte_size', provider_logo.byte_size,
-              'sha256', provider_logo.sha256,
-              'status', provider_logo.status,
-              'is_primary', provider_logo.is_primary,
-              'sort_order', provider_logo.sort_order,
-              'last_checked_at', provider_logo.last_checked_at,
-              'cached_at', provider_logo.cached_at
-            )
-          END
-        )
-        ORDER BY pr.provider_category, pr.provider_name, pr.provider_title
-      )
-      FROM media_provider mpv
-      JOIN provider pr ON pr.provider_id = mpv.provider_id
-
-      LEFT JOIN LATERAL (
-        SELECT
-          ia.*,
-          pia.image_kind,
-          pia.is_primary,
-          pia.sort_order
-        FROM provider_image_asset pia
-        JOIN image_asset ia
-          ON ia.image_asset_id = pia.image_asset_id
-        WHERE pia.provider_id = pr.provider_id
-          AND pia.image_kind IN ('provider_logo', 'logo')
-        ORDER BY
-          pia.is_primary DESC,
-          pia.sort_order ASC,
-          (ia.status = 'cached') DESC,
-          (ia.public_url IS NOT NULL) DESC,
-          (ia.variant = 'original') DESC,
-          ia.cached_at DESC NULLS LAST,
-          ia.updated_at DESC NULLS LAST
-        LIMIT 1
-      ) provider_logo ON TRUE
-
-      WHERE mpv.media_id = m.media_id
-    ),
-    '[]'::jsonb
-  ) AS providers,
+    WHERE mpv.media_id = m.media_id
+  ), '[]'::jsonb) AS providers,
 
   m.fetched_at,
   m.updated_at,
@@ -243,47 +244,34 @@ SELECT
 FROM media m
 
 LEFT JOIN LATERAL (
-  SELECT
-    ia.*,
-    mia.image_kind,
-    mia.is_primary,
-    mia.sort_order
-  FROM media_image_asset mia
-  JOIN image_asset ia
-    ON ia.image_asset_id = mia.image_asset_id
-  WHERE mia.media_id = m.media_id
-    AND mia.image_kind = 'poster'
+  SELECT *
+  FROM image_choice_media img
+  WHERE img.media_id = m.media_id
+    AND img.image_kind = 'poster'
   ORDER BY
-    mia.is_primary DESC,
-    mia.sort_order ASC,
-    (ia.status = 'cached') DESC,
-    (ia.public_url IS NOT NULL) DESC,
-    (ia.variant = 'w500') DESC,
-    (ia.variant = 'original') DESC,
-    ia.cached_at DESC NULLS LAST,
-    ia.updated_at DESC NULLS LAST
+    img.is_primary DESC,
+    img.sort_order ASC,
+    (img.variant_status = 'cached') DESC,
+    (img.public_url IS NOT NULL) DESC,
+    (img.variant_key = 'poster_200x300') DESC,
+    (img.variant_key = 'poster_1000x1500') DESC,
+    (img.variant_key = 'poster_original') DESC,
+    img.cached_at DESC NULLS LAST
   LIMIT 1
 ) poster ON TRUE
 
 LEFT JOIN LATERAL (
-  SELECT
-    ia.*,
-    mia.image_kind,
-    mia.is_primary,
-    mia.sort_order
-  FROM media_image_asset mia
-  JOIN image_asset ia
-    ON ia.image_asset_id = mia.image_asset_id
-  WHERE mia.media_id = m.media_id
-    AND mia.image_kind = 'backdrop'
+  SELECT *
+  FROM image_choice_media img
+  WHERE img.media_id = m.media_id
+    AND img.image_kind = 'backdrop'
   ORDER BY
-    mia.is_primary DESC,
-    mia.sort_order ASC,
-    (ia.status = 'cached') DESC,
-    (ia.public_url IS NOT NULL) DESC,
-    (ia.variant = 'w780') DESC,
-    (ia.variant = 'original') DESC,
-    ia.cached_at DESC NULLS LAST,
-    ia.updated_at DESC NULLS LAST
+    img.is_primary DESC,
+    img.sort_order ASC,
+    (img.variant_status = 'cached') DESC,
+    (img.public_url IS NOT NULL) DESC,
+    (img.variant_key = 'backdrop_1280x720') DESC,
+    (img.variant_key = 'backdrop_original') DESC,
+    img.cached_at DESC NULLS LAST
   LIMIT 1
 ) backdrop ON TRUE;

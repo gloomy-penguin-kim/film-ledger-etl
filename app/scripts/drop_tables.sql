@@ -1,0 +1,14 @@
+-- drop table if exists errors cascade;
+-- drop table if exists raw_imdb_payloads cascade;
+-- drop table if exists media_provider cascade;
+-- drop table if exists provider cascade;
+-- drop table if exists media cascade;
+-- drop table if exists trending_snapshot cascade;
+-- drop table if exists media_genre cascade;
+-- drop table if exists genre cascade;
+-- drop table if exists media_person cascade;
+-- drop table if exists person cascade;
+-- drop table if exists media_keyword cascade;
+-- drop table if exists keyword cascade;
+-- drop table if exists media_language cascade;
+-- drop table if exists language cascade;

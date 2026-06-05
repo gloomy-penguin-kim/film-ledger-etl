@@ -1,3 +1,15 @@
+
+create table if not exists errors (
+    error_id BIGSERIAL PRIMARY KEY,
+    error_message TEXT,
+    payload_id BIGINT,
+    media_id BIGINT,
+    media_imdb_id TEXT,
+    sql_query TEXT,
+    error_timestamp TIMESTAMPTZ DEFAULT now()
+);
+
+
 CREATE TABLE IF NOT EXISTS raw_imdb_payloads (
     id BIGSERIAL PRIMARY KEY,
     source TEXT NOT NULL, 
@@ -21,9 +33,6 @@ CREATE TABLE IF NOT EXISTS media (
     media_review_rating NUMERIC(3,1),
     media_vote_count INT,
     media_plot TEXT,
-    media_image TEXT,
-    media_image_width INT,
-    media_image_height INT,
     media_certificate TEXT,
     media_production_status TEXT, 
     raw_json JSONB,
@@ -89,53 +98,72 @@ CREATE TABLE IF NOT EXISTS media_language (
     language_id BIGINT REFERENCES language(language_id) ON DELETE CASCADE,
     PRIMARY KEY (media_id, language_id)
 );
-
-CREATE TABLE IF NOT EXISTS provider ( 
+CREATE TABLE IF NOT EXISTS provider (
     provider_id BIGSERIAL PRIMARY KEY,
-    provider_code VARCHAR(255) UNIQUE NOT NULL, 
+    provider_code VARCHAR(255) NOT NULL,
     provider_name VARCHAR(255),
-    provider_title TEXT NOT NULL,  
-    provider_title_alt TEXT, 
-    provider_category VARCHAR(255) NOT NULL,  
-    CONSTRAINT unique_provider_code_name UNIQUE (provider_category, provider_code)
+    provider_title TEXT,
+    provider_title_alt TEXT,
+    provider_category VARCHAR(255) NOT NULL,
+
+    CONSTRAINT unique_provider_category_code
+        UNIQUE (provider_category, provider_code)
 );
- 
+
 CREATE TABLE IF NOT EXISTS media_provider (
     media_id BIGINT REFERENCES media(media_id) ON DELETE CASCADE,
     provider_id BIGINT REFERENCES provider(provider_id) ON DELETE CASCADE,
-    provider_desc TEXT, 
+    provider_desc TEXT,
     provider_link TEXT NOT NULL,
     PRIMARY KEY (media_id, provider_id)
 );
 
-DROP TABLE IF EXISTS media_image_asset CASCADE;
-DROP TABLE IF EXISTS provider_image_asset CASCADE;
-DROP TABLE IF EXISTS image_asset CASCADE;
-
-CREATE TABLE if not exists image_asset (
+CREATE TABLE IF NOT EXISTS image_asset (
     image_asset_id BIGSERIAL PRIMARY KEY,
 
-    -- The actual source image.
+    -- The original/source image.
     source_provider TEXT,
-    source_url TEXT,
+    source_url TEXT NOT NULL,
 
-    -- Example: original, w342, w500, w780
-    variant TEXT NOT NULL DEFAULT 'original',
+    source_width INTEGER,
+    source_height INTEGER,
+    source_content_type TEXT,
 
-    -- Your cached copy.
+    -- Optional fingerprint of the original.
+    source_sha256 TEXT,
+
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (
+        status IN ('pending', 'processing', 'cached', 'failed', 'skipped')
+    ),
+
+    error_message TEXT,
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+
+    last_checked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT image_asset_unique_source_url UNIQUE (source_url)
+);
+
+CREATE TABLE IF NOT EXISTS image_variant (
+    image_variant_id BIGSERIAL PRIMARY KEY,
+    image_asset_id BIGINT NOT NULL REFERENCES image_asset(image_asset_id) ON DELETE CASCADE,
+
+    -- original, thumb, card, large, w342, w500, etc.
+    variant_id bigint not null references variant(variant_id) on delete cascade,
+
     storage_provider TEXT NOT NULL DEFAULT 'r2',
     storage_bucket TEXT,
     object_key TEXT,
     public_url TEXT,
 
-    -- File metadata.
     content_type TEXT,
     width INTEGER,
     height INTEGER,
     byte_size INTEGER,
     sha256 TEXT,
 
-    -- Cache state.
     status TEXT NOT NULL DEFAULT 'pending' CHECK (
         status IN ('pending', 'cached', 'failed', 'skipped')
     ),
@@ -149,18 +177,35 @@ CREATE TABLE if not exists image_asset (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    CONSTRAINT image_asset_unique_source_variant UNIQUE (
-        source_url,
-        variant
+    CONSTRAINT image_variant_unique_asset_variant_storage UNIQUE (
+        image_asset_id,
+        variant_id,
+        storage_provider,
+        storage_bucket
     )
 );
 
-CREATE TABLE media_image_asset (
-    media_id BIGINT NOT NULL REFERENCES media(media_id) ON DELETE CASCADE,
-    image_asset_id BIGINT NOT NULL REFERENCES image_asset(image_asset_id) ON DELETE CASCADE,
+CREATE TABLE if not exists path (
+    path_id SERIAL PRIMARY KEY,
+    path_name TEXT NOT NULL,
+    parent_id INT REFERENCES path(path_id)
+);
+
+
+CREATE TABLE IF NOT EXISTS image_asset_link (
+    image_asset_link_id BIGSERIAL PRIMARY KEY,
+
+    image_asset_id BIGINT NOT NULL
+        REFERENCES image_asset(image_asset_id) ON DELETE CASCADE,
+
+    owner_type TEXT NOT NULL CHECK (
+        owner_type IN ('media', 'provider')
+    ),
+
+    owner_id BIGINT NOT NULL,
 
     image_kind TEXT NOT NULL CHECK (
-        image_kind IN ('poster', 'backdrop', 'logo')
+        image_kind IN ('poster', 'backdrop', 'logo', 'provider_logo')
     ),
 
     is_primary BOOLEAN NOT NULL DEFAULT TRUE,
@@ -169,63 +214,102 @@ CREATE TABLE media_image_asset (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-    PRIMARY KEY (media_id, image_asset_id, image_kind)
+    UNIQUE (owner_type, owner_id, image_kind, image_asset_id)
 );
 
-CREATE TABLE provider_image_asset (
-    provider_id BIGINT NOT NULL REFERENCES provider(provider_id) ON DELETE CASCADE,
-    image_asset_id BIGINT NOT NULL REFERENCES image_asset(image_asset_id) ON DELETE CASCADE,
-
-    image_kind TEXT NOT NULL CHECK (
-        image_kind IN ('provider_logo', 'logo')
-    ),
-
-    is_primary BOOLEAN NOT NULL DEFAULT TRUE,
-    sort_order INTEGER NOT NULL DEFAULT 0,
-
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    PRIMARY KEY (provider_id, image_asset_id, image_kind)
-);
-
-CREATE INDEX idx_image_asset_source_url
+CREATE UNIQUE INDEX IF NOT EXISTS uq_image_asset_source_url
 ON image_asset(source_url);
 
-CREATE INDEX idx_image_asset_status
-ON image_asset(status);
 
-CREATE INDEX idx_image_asset_sha256
-ON image_asset(sha256);
 
-CREATE UNIQUE INDEX idx_image_asset_object_key_unique
-ON image_asset(object_key)
-WHERE object_key IS NOT NULL;
+CREATE TABLE IF NOT EXISTS variant (
+    variant_id BIGSERIAL PRIMARY KEY,
 
-CREATE INDEX idx_media_image_asset_media_id
-ON media_image_asset(media_id);
+    variant_name text not null,
 
-CREATE INDEX idx_media_image_asset_image_asset_id
-ON media_image_asset(image_asset_id);
+    owner_type TEXT CHECK (
+        owner_type in ('media','provider')
+    ),
+    image_kind TEXT CHECK (
+        image_kind IN ('poster', 'backdrop', 'provider_logo', 'logo')
+    ),
+    variant_str TEXT,
+    path_str TEXT NOT NULL,
+    active boolean not null default true,
 
-CREATE INDEX idx_media_image_asset_kind
-ON media_image_asset(image_kind);
+    target_width INTEGER,
+    target_height INTEGER,
 
-CREATE INDEX idx_provider_image_asset_provider_id
-ON provider_image_asset(provider_id);
+    is_cropped BOOLEAN NOT NULL DEFAULT FALSE,
 
-CREATE INDEX idx_provider_image_asset_image_asset_id
-ON provider_image_asset(image_asset_id);
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 
-drop table if exists errors;
-create table errors (
-    error_id BIGSERIAL PRIMARY KEY,
-    error_message TEXT,
-    payload_id BIGINT,
-    media_id BIGINT,
-    media_imdb_id TEXT,
-    sql_query TEXT,
-    error_timestamp TIMESTAMPTZ DEFAULT now()
+    CONSTRAINT unique_variant_slug
+        UNIQUE (owner_type, image_kind, variant_str)
 );
+
+INSERT INTO variant (
+    variant_name,
+
+    owner_type,
+    image_kind,
+    variant_str,
+
+    path_str,
+
+    target_width,
+    target_height,
+    is_cropped
+)
+VALUES
+    ('original_media',
+     'media',
+     'poster',
+     'original',
+     'media/poster/original',
+     NULL,
+     NULL,
+     FALSE),
+
+    ('original_provider_logo',
+     'provider',
+     'provider_logo',
+     'original',
+     'provider/provider_logo/original',
+     NULL,
+     NULL,
+     FALSE),
+
+    ('poster_200x300',
+     'media',
+     'poster',
+     '200x300',
+     'media/poster/200x300',
+     200,
+     300,
+     TRUE),
+
+    ('poster_1000x1500',
+     'media',
+     'poster',
+     '1000x1500',
+     'media/poster/1000x1500',
+     1000,
+     1500,
+     TRUE),
+
+    ('provider_logo_150x225',
+     'provider',
+     'provider_logo',
+     '225x150',
+     'provider/provider_logo/255x150',
+     225,
+     150,
+     TRUE)
+
+ON CONFLICT (variant_name) DO NOTHING;
+
+
 
 

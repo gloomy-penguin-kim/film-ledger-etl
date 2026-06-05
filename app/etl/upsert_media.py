@@ -1,7 +1,10 @@
 from typing import Any
 import json
 
-def upsert_media(conn, media: dict[str, Any]) -> int:
+from app.etl.upsert_streaming import upsert_media_poster_image
+
+
+def upsert_media(conn, media: dict[str, Any]) -> int | None:
     image_dimensions = media.get("image_dimensions") or {}
 
     sql = """
@@ -15,10 +18,7 @@ def upsert_media(conn, media: dict[str, Any]) -> int:
             media_runtime_seconds,
             media_review_rating,
             media_vote_count,
-            media_plot,
-            media_image,
-            media_image_width,
-            media_image_height,
+            media_plot, 
             media_certificate, 
             media_production_status,
             raw_json,
@@ -34,10 +34,7 @@ def upsert_media(conn, media: dict[str, Any]) -> int:
             %(media_runtime_seconds)s,
             %(media_review_rating)s,
             %(media_vote_count)s,
-            %(media_plot)s,
-            %(media_image)s,
-            %(media_image_width)s,
-            %(media_image_height)s,
+            %(media_plot)s, 
             %(media_certificate)s,
             %(media_production_status)s,
             %(raw_json)s::jsonb,
@@ -53,10 +50,7 @@ def upsert_media(conn, media: dict[str, Any]) -> int:
             media_runtime_seconds = EXCLUDED.media_runtime_seconds,
             media_review_rating = EXCLUDED.media_review_rating,
             media_vote_count = EXCLUDED.media_vote_count,
-            media_plot = EXCLUDED.media_plot,
-            media_image = EXCLUDED.media_image,
-            media_image_width = EXCLUDED.media_image_width,
-            media_image_height = EXCLUDED.media_image_height,
+            media_plot = EXCLUDED.media_plot, 
             media_certificate = EXCLUDED.media_certificate,
             media_production_status = EXCLUDED.media_production_status,
             raw_json = EXCLUDED.raw_json,
@@ -75,9 +69,6 @@ def upsert_media(conn, media: dict[str, Any]) -> int:
         "media_review_rating": media.get("rating"),
         "media_vote_count": media.get("vote_count"),
         "media_plot": media.get("plot"),
-        "media_image": media.get("poster_url"),
-        "media_image_width": image_dimensions.get("width"),
-        "media_image_height": image_dimensions.get("height"),
         "media_certificate": media.get("certificate"),
         "media_production_status": media.get("production_status"),
         "raw_json": json.dumps(media),
@@ -85,4 +76,9 @@ def upsert_media(conn, media: dict[str, Any]) -> int:
 
     with conn.execute(sql, params) as cur:
         results = cur.fetchone()
-        return results[0] if results else None
+        if results:
+            media_id = results[0]
+            upsert_media_poster_image(conn, media_id, media)
+            return media_id
+        return None
+

@@ -1,12 +1,14 @@
 # fetch → insert raw JSON → normalize → upsert rows
+import argparse
 import pprint
 import json
+from importlib import reload
+
 from app.etl.fetch_json import ImdbClient
 from app.etl.db_conn import DatabaseConn
 from app.etl.insert_raw_payload import save_raw_payload, mark_processed, get_last_processed_payload, update_movie
 from app.etl.upsert_media import upsert_media
 from app.etl.upsert_trending import upsert_trending_snapshot
-from app.etl.upsert_images import upsert_image_redo
 from app.etl.upsert_tables import upsert_people, upsert_keywords, upsert_languages, upsert_enhanced, upsert_genres
 from app.etl.upsert_streaming import upsert_streaming_availability
 
@@ -15,14 +17,14 @@ db = DatabaseConn()
 
 VERSION = 3
 
-def ingest_trending(count: int = 250):
+def ingest_trending(force: bool=False, count: int = 250):
 
     result = get_last_processed_payload(
         conn=db.conn,
         source="imdb_trending",
         version=VERSION)
 
-    if result:
+    if result and not force:
         if result.get("processed_at"): 
             print("Last payload already processed")
             return 
@@ -65,15 +67,10 @@ def ingest_trending(count: int = 250):
                 streaming = imdb_client.get_streaming_availability(media_imdb_id)
                 upsert_streaming_availability(conn, media_id, streaming)
 
-            if missing_image:
-                upsert_image_redo(conn,
-                                  media_id=media_id,
-                                  media=details)
-
             upsert_trending_snapshot(conn, media_id, movie.get("rank"))
             conn.commit()
 
-            print(f"{count}. Updated media {media_id}, imdb {media_imdb_id}, raw_id {raw_id}")
+            print(f"{count}. Updated media {media_id}, imdb {media_imdb_id}")
             count += 1
 
         except Exception as e:
@@ -99,5 +96,30 @@ def ingest_trending(count: int = 250):
     mark_processed(db, raw_id)
 
 
+if __name__ == "__main__":
+    # Create the parser
+    parser = argparse.ArgumentParser(description='ingest tending movie titles')
 
-ingest_trending() 
+    # Add arguments
+    parser.add_argument('-c','--count', dest='count', nargs='?', const=250, type=int, help='the number of titles to retrieve')
+    parser.add_argument("-f","--force", dest='force', action='store_true', help='force the tables to load')
+    parser.add_argument("-d","--drop", dest='drop', action='store_true', help='drop the tables, reload the data')
+    parser.add_argument("-s","--schema", dest='schema', action='store_true', help='run schema.sql')
+    parser.add_argument("-v","--view", dest='view', action='store_true', help='create media_full_view')
+    # Parse the arguments
+    args = parser.parse_args()
+
+    if args.drop:
+        args.schema = True
+        args.view = True
+
+    if args.drop:
+        db.drop_tables()
+
+    if args.schema:
+        db.create_default_schema()
+
+    if args.view:
+        db.create_view()
+
+    ingest_trending(count=args.count,force=args.force)

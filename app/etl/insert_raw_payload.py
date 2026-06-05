@@ -4,27 +4,28 @@ def update_movie(conn, movie_id: str):
     UNLESS - if there is now an image for it
     """
     sql = """
-            SELECT
+             SELECT
                 m.media_id,
             
                 (
-                  m.updated_at < now() - interval '2 months'
-                  AND (
+                    m.updated_at < now() - interval '2 months'
+                    AND (
                         m.media_release_year IS NULL
                         OR m.media_release_date >= current_date - interval '18 months'
-                      )
+                    )
                 ) OR (
-                  m.updated_at < now() - interval '6 months'
+                    m.updated_at < now() - interval '6 months'
                 ) AS needs_a_refresh,
             
                 NOT EXISTS (
-                  SELECT 1
-                  FROM media_image_asset mia
-                  JOIN image_asset ia
-                    ON ia.image_asset_id = mia.image_asset_id
-                  WHERE mia.media_id = m.media_id
-                    AND mia.image_kind = 'poster'
-                    AND ia.status = 'cached'
+                    SELECT 1
+                    FROM image_asset_link ial
+                    JOIN image_asset ia
+                        ON ia.image_asset_id = ial.image_asset_id
+                    WHERE ial.owner_type = 'media'
+                      AND ial.owner_id = m.media_id
+                      AND ial.image_kind = 'poster'
+                      AND ia.source_url IS NOT NULL
                 ) AS missing_image
             
             FROM media m
@@ -40,7 +41,7 @@ def update_movie(conn, movie_id: str):
             if cur.description:
                 columns = [desc[0] for desc in cur.description]
                 results = [dict(zip(columns, row)) for row in cur.fetchall()]
-                return results[0]
+                return results[0] if len(results) > 0 else None, True, True
             return None, True, True
 
     except Exception as e:
@@ -57,7 +58,7 @@ def get_last_processed_payload(conn, source: str, version: int):
     FROM    raw_imdb_payloads
     WHERE   source = %s AND  
             version = %s AND
-            fetched_at::date >= CURRENT_DATE
+            fetched_at::date >= CURRENT_DATE - interval '1 hour'
     ORDER   BY fetched_at DESC
     LIMIT 1
     """

@@ -1,6 +1,5 @@
 from datetime import date
 
-
 def upsert_trending_snapshot(
         conn,
         media_id: int,
@@ -18,7 +17,7 @@ def upsert_trending_snapshot(
                   %(rank)s, \
                   COALESCE(%(snapshot_date)s, current_date))
           ON CONFLICT (media_id, snapshot_date)
-              DO UPDATE SET rank = EXCLUDED.rank; \
+          DO NOTHING  \
           """
 
     conn.execute(
@@ -29,3 +28,4 @@ def upsert_trending_snapshot(
             "snapshot_date": snapshot_date,
         },
     )
+
