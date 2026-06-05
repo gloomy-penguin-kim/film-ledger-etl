@@ -2,19 +2,21 @@
 import argparse
 import json
 
-from app.download.images import run_images_download
 from app.etl.fetch_json import ImdbClient
 from app.etl.db_conn import DatabaseConn
 from app.etl.insert_raw_payload import save_raw_payload, mark_processed, get_last_processed_payload, update_movie
 from app.etl.upsert_media import upsert_media
 from app.etl.upsert_trending import upsert_trending_snapshot
-from app.etl.upsert_tables import upsert_people, upsert_keywords, upsert_languages, upsert_enhanced, upsert_genres
+from app.etl.upsert_people import upsert_people, upsert_enhanced
+from app.etl.upsert_tables import upsert_keywords, upsert_languages, upsert_genres
 from app.etl.upsert_streaming import upsert_streaming_availability
 
 imdb_client = ImdbClient()
 db = DatabaseConn() 
 
 VERSION = 3
+
+DEBUG = False
 
 def ingest_trending(force: bool=False, count: int = 250):
 
@@ -53,21 +55,31 @@ def ingest_trending(force: bool=False, count: int = 250):
 
             details = imdb_client.get_movie_details(media_imdb_id)
 
+            if (DEBUG): print("-"*20, "upsert_media", "-"*20)
             media_id = upsert_media(conn, details)
+            if (DEBUG): conn.commit()
 
             if needs_a_refresh:
+                if (DEBUG): print("-"*20, "upsert_genres", "-"*20)
                 upsert_genres(conn, media_id, details)
+                if (DEBUG): conn.commit()
 
+                if (DEBUG): print("-"*20, "upsert_people", "-"*20)
                 upsert_people(conn, media_id, details)
                 upsert_enhanced(conn, media_id, details)
+                if (DEBUG): conn.commit()
 
+                if (DEBUG): print("-"*20, "upsert_keywords", "-"*20)
                 upsert_keywords(conn, media_id, details)
                 upsert_languages(conn, media_id, details)
+                if (DEBUG): conn.commit()
 
-
+                if (DEBUG): print("-"*20, "get_streaming_availability", "-"*20)
                 streaming = imdb_client.get_streaming_availability(media_imdb_id)
                 upsert_streaming_availability(conn, media_id, streaming)
+                if (DEBUG): conn.commit()
 
+            if (DEBUG): print("-"*20, "upsert_trending_snapshot", "-"*20)
             upsert_trending_snapshot(conn, media_id, movie.get("rank"))
             conn.commit()
 
@@ -102,8 +114,12 @@ def ingest_trending(force: bool=False, count: int = 250):
 
     mark_processed(db, raw_id)
 
-    run_images_download(db)
-
+    try:
+        from app.download.images import run_images_download
+        run_images_download(db, count=0)
+    except Exception as e:
+        db.conn.rollback()
+        print(f"Exception: {e}")
 
 if __name__ == "__main__":
     # Create the parser

@@ -351,7 +351,8 @@ class ImdbClient:
                     text
                     id
                   }
-                }
+                } 
+                  
                 canHaveEpisodes
                 series {
                   series {
@@ -428,13 +429,17 @@ class ImdbClient:
                     difference
                   }
                 }
-                keywords {
-                  edges {
-                    node {
-                      text
+                 
+                
+                  keywords(first: 5) {
+                    edges {
+                      node {
+                        text
+                        id
+                      }
                     }
                   }
-                }
+                  
                 latestTrailer {
                   id
                   name {

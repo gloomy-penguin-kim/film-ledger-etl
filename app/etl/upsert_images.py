@@ -51,9 +51,9 @@ def upsert_media_poster_image(conn, media_id: int, media: dict) -> int | None:
             updated_at
         )
         VALUES (
-            %s,
+            %(image_asset_id)s,
             'media',
-            %s,
+            %(media_id)s,
             'poster',
             TRUE,
             0,
@@ -64,9 +64,9 @@ def upsert_media_poster_image(conn, media_id: int, media: dict) -> int | None:
         DO UPDATE SET
             is_primary = EXCLUDED.is_primary,
             updated_at = now();
-    """, (
-        image_asset_id,
-        media_id,
-    ))
+    """, {
+        "image_asset_id": image_asset_id,
+        "media_id": media_id,
+    })
 
     return image_asset_id

@@ -19,6 +19,11 @@ class DatabaseConn:
             self.conn = psycopg.connect(database_url)
         return self.conn
 
+    def images_to_download(self):
+        sql_file = "./app/scripts/queries/images_to_download.sql"
+        desc = "Images to download ran"
+        return self.select_from_file(sql_file, desc)
+
     def create_default_schema(self):
         sql_file = "./app/scripts/schema.sql"
         desc = "Default schema created"
@@ -60,6 +65,29 @@ class DatabaseConn:
         except psycopg.Error as e:
             print(f"Ignored database error: {e}")
             self.conn.rollback()
+
+    def select_from_file(self, sql_file, desc=None):
+        if not os.path.exists(sql_file):
+            raise FileNotFoundError(f"{sql_file} file not found. Please ensure it exists in the current directory.")
+        try:
+            with self.conn.cursor() as cur:
+                with open(sql_file, "r", encoding="utf-8") as file:
+                    sql_script = file.read()
+                    try:
+                        cur.execute(sql_script)
+                    except psycopg.Error as e:
+                        print(f"Error executing SQL piece: {e}")
+                        print(f"Code: {sql_script}")
+                        quit()
+                if cur.description:
+                    columns = [desc[0] for desc in cur.description]
+                    results = [dict(zip(columns, row)) for row in cur.fetchall()]
+                    if desc: print(f"{desc} successfully with {len(results)} rows.")
+                    return results
+        except psycopg.Error as e:
+            print(f"Ignored database error: {e}")
+            self.conn.rollback()
+
 
     def execute(self, sql="", args=None):
         """Run a SQL query and return the results as a list of dictionaries"""

@@ -1,93 +1,29 @@
-import hashlib
 from datetime import datetime, timezone
-import argparse
-
-import boto3
-import requests
-import os
 from io import BytesIO
 from PIL import Image
+from botocore.exceptions import ClientError
 from dotenv import load_dotenv
+import re
+import base64
+import boto3
+import requests
+import argparse
+import hashlib
+import os
 
 from app.etl.db_conn import DatabaseConn
 from app.download.cloudflare import load_image_variant_table_from_cloudflare
 
 load_dotenv()
 
-def loop_through_needed_variants(db):
-    with db.conn.cursor() as cur:
-        cur.execute("""
-            WITH needed AS (
-                SELECT DISTINCT
-                    ia.image_asset_id,
-                    ia.source_url,
-            
-                    ial.owner_type,
-                    ial.owner_id,
-                    ial.image_kind,
-            
-                    v.variant_id, 
-                    v.path_str,
-                    v.target_width,
-                    v.target_height,
-                    v.is_cropped,
-            
-                    iv.image_variant_id,
-                    iv.status,
-                    iv.cached_at,
-            
-                    (
-                        iv.image_variant_id IS NULL
-                        OR iv.status <> 'cached'
-                        OR iv.cached_at IS NULL
-                        OR iv.cached_at <= NOW() - INTERVAL '6 months'
-                    ) AS needs_variant
-            
-                FROM image_asset ia
-                JOIN image_asset_link ial
-                    ON ial.image_asset_id = ia.image_asset_id
-                JOIN variant v
-                    ON v.image_kind = ial.image_kind
-                LEFT JOIN image_variant iv
-                    ON iv.image_asset_id = ia.image_asset_id
-                   AND iv.variant_id = v.variant_id
-            
-                WHERE
-                    ial.owner_type IN ('media', 'provider')
-                    AND (
-                        iv.image_variant_id IS NULL
-                        OR iv.status <> 'cached'
-                        OR iv.cached_at IS NULL
-                        OR iv.cached_at <= NOW() - INTERVAL '6 months'
-                    )
-            )
-            
-            SELECT
-                source_url,
-                jsonb_agg(
-                    jsonb_build_object(
-                        'image_asset_id', image_asset_id,
-                        'owner_type', owner_type,
-                        'owner_id', owner_id,
-                        'image_kind', image_kind,
-                        'variant_id', variant_id,
-                        'path_str', path_str, 
-                        'target_width', target_width,
-                        'target_height', target_height,
-                        'is_cropped', is_cropped,
-                        'image_variant_id', image_variant_id,
-                        'status', status,
-                        'cached_at', cached_at,
-                        'needs_variant', needs_variant
-                    )
-                    ORDER BY owner_type, owner_id, image_kind, path_str 
-                ) AS variants_needed
-            FROM needed
-            GROUP BY source_url
-            ORDER BY source_url;
-        """)
-        columns = [desc[0] for desc in cur.description]
-        return [dict(zip(columns, row)) for row in cur.fetchall()]
+
+def sanitize_ascii(text):
+    """Remove non-ASCII characters from a string."""
+    return re.sub(r'[^\x00-\x7F]+', '', text)
+
+def encode_base64(text):
+    """Encode text to Base64 for safe storage."""
+    return base64.b64encode(text.encode('utf-8')).decode('ascii')
 
 
 def format_image(db,
@@ -95,7 +31,7 @@ def format_image(db,
                  source_url,
                  result,
                  content,
-                 content_type=None,
+                 content_type,
                  save_download=False,
                  quality=100):
 
@@ -110,11 +46,15 @@ def format_image(db,
     actual_height = None
 
     image_asset_id = result.get("image_asset_id")
+    description = result.get("description")
     path_str = result.get("path_str")
     variant_id = result.get("variant_id")
     target_width = result.get("target_width") or None
     target_height = result.get("target_height") or None
     is_cropped = result.get("is_cropped") or False
+
+    s3_bucket = os.environ.get("CLOUDFLARE_BUCKET")
+    s3_provider = os.environ.get("CLOUDFLARE_PROVIDER")
 
     image = Image.open(BytesIO(content))
 
@@ -152,12 +92,39 @@ def format_image(db,
             print(debug_path)
 
         try:
-            s3.put_object(
-                Bucket=os.environ.get("CLOUDFLARE_BUCKET"),
-                Key=object_key,
-                Body=body,
-                ContentType=content_type,
-            )
+            metadata = {"source": "app.download.images",
+                        "content_type": content_type,
+                        'description': sanitize_ascii(description),
+                        'description_base64': encode_base64(sanitize_ascii(description)),
+                        "source_url": source_url,
+                        "path_str": path_str,
+                        "width": str(actual_width),
+                        "height": str(actual_height),
+                        "sha256": str(sha256),
+                        "byte_size": str(byte_size),
+                        "image_asset_id": str(image_asset_id),
+                        "quality": str(quality),
+                        }
+            try:
+                response = s3.head_object(Bucket=s3_bucket, Key=object_key)
+                print(response["Metadata"])
+
+                s3.copy_object(
+                    Bucket=s3_bucket,
+                    Key=object_key,
+                    CopySource={"Bucket": s3_bucket, "Key": object_key},
+                    ContentType=content_type,
+                    Metadata=metadata,
+                    MetadataDirective="REPLACE",
+                )
+            except ClientError as e:
+                s3.put_object(
+                    Bucket=s3_bucket,
+                    Key=object_key,
+                    Body=body,
+                    ContentType=content_type,
+                    Metadata=metadata,
+                )
 
         except Exception as e:
             error_message = str(e)
@@ -197,8 +164,8 @@ def format_image(db,
             """, {
                 "image_asset_id": result.get("image_asset_id"),
                 "variant_id": variant_id,
-                "storage_provider": os.environ.get("CLOUDFLARE_PROVIDER"),
-                "storage_bucket": os.environ.get("CLOUDFLARE_BUCKET"),
+                "storage_provider": s3_provider,
+                "storage_bucket": s3_bucket,
                 "object_key": object_key,
                 "public_url": public_url,
                 "content_type": content_type,
@@ -220,6 +187,7 @@ def format_image(db,
 def loop_through(db, s3, results, save_download=False):
 
     for result in results:
+        conn = db.connect()
 
         source_url = result.get("source_url")
         if not source_url: continue
@@ -232,15 +200,15 @@ def loop_through(db, s3, results, save_download=False):
         try:
             content, content_type, sha256 = download_image(source_url)
             print("")
-            print(f"Image Asset ID: {image_asset_id}")
             print(f"Downloaded {source_url}")
             print(f"Content type: {content_type}")
             print(f"Sha256: {sha256}")
 
             for variant_needed in result.get("variants_needed"):
+                print(f"path_str: {variant_needed["path_str"]}")
                 original_content = content
                 if variant_needed.get("needs_variant"):
-                    image_asset_id = format_image(db=db,
+                    image_asset_id = format_image(db=conn,
                                  s3=s3,
                                  source_url=source_url,
                                  result=variant_needed,
@@ -252,7 +220,7 @@ def loop_through(db, s3, results, save_download=False):
 
         except Exception as e:
             error_message = str(e)
-            db.conn.rollback()
+            conn.rollback()
             print(f"Error downloading {source_url}")
             print(f"Error message: {error_message}")
 
@@ -262,7 +230,7 @@ def loop_through(db, s3, results, save_download=False):
         status = 'failed' if error_message else 'cached'
         attempts = 0 if error_message else 1
         current_time = datetime.now(timezone.utc)
-        db.conn.execute("""
+        conn.execute("""
             update image_asset 
                set source_content_type = %(content_type)s, 
                    source_sha256 = %(sha256)s, 
@@ -282,7 +250,7 @@ def loop_through(db, s3, results, save_download=False):
             "updated_at": current_time,
             "attempts": attempts,
         })
-        db.conn.commit()
+        conn.commit()
 
         if status == "failed":
             print("\n", "*"*80, "failed", "*"*80, "\n")
@@ -347,7 +315,7 @@ def resize_and_crop(img, target_width, target_height=None):
     return cropped
 
 
-def run_images_download(db=None, save_download=False):
+def run_images_download(db=None, count=0, save_download=False):
     db = db or DatabaseConn()
 
     s3 = boto3.client(
@@ -358,8 +326,8 @@ def run_images_download(db=None, save_download=False):
         region_name="auto",
     )
 
-    results = loop_through_needed_variants(db)
-    rows = results[:args.count] if args.count > 0 else results
+    results = db.images_to_download()
+    rows = results[:count] if count > 0 else results
     loop_through(db, s3, rows, save_download)
 
 
@@ -418,7 +386,7 @@ if __name__ == "__main__":
         print("-------------------------------")
         print("No download option is selected.")
         print()
-    else: run_images_download(db, save_download=args.save_download)
+    else: run_images_download(db, count=0, save_download=args.save_download)
 
 
 
