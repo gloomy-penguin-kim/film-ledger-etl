@@ -72,17 +72,17 @@ def get_last_processed_payload(conn, source: str, version: int):
         return None
 
 
-def save_raw_payload(conn, source: str, version: int, payload: str, count: int):
+def save_raw_payload(conn, source: str, version: int, payload: str, count:int=0):
     """
     Save the raw JSON payload to the database.
     """
     sql = """
-    INSERT INTO raw_imdb_payloads (source, version, payload, count)
-    VALUES (%s, %s, %s, %s)
-    RETURNING id
+        INSERT INTO raw_imdb_payloads (source, version, payload, count)
+        VALUES (%s, %s, %s, %s)
+        RETURNING id
     """
     try:
-        result = conn.execute(sql, (source, version, payload))
+        result = conn.execute(sql, (source, version, payload, count))
         print(f"Saved raw payload with ID: {result[0]['id']}" if result else "Failed to save raw payload.")
         return result[0]["id"] if result else None
     except Exception as e:

@@ -23,8 +23,6 @@ def ingest_trending(force: bool=False, count: int = 250):
         source="imdb_trending",
         version=VERSION)
 
-    print("result", result)
-
     if result and not force:
         if result.get("processed_at"): 
             print("Last payload already processed")
@@ -66,6 +64,7 @@ def ingest_trending(force: bool=False, count: int = 250):
                 upsert_keywords(conn, media_id, details)
                 upsert_languages(conn, media_id, details)
 
+
                 streaming = imdb_client.get_streaming_availability(media_imdb_id)
                 upsert_streaming_availability(conn, media_id, streaming)
 
@@ -80,7 +79,7 @@ def ingest_trending(force: bool=False, count: int = 250):
             db.conn.rollback()
             db.conn.execute("""
                 insert into errors (error_message, payload_id, media_id, media_imdb_id, sql_query)
-                values (%(error)s, %(raw_id)s, %(media_id)s, %(media_imdb_id)s, %(querys)s)
+                values (%(error)s, %(raw_id)s, %(media_id)s, %(media_imdb_id)s, %(query)s)
                 """, {
                     "error": str(e),
                     "raw_id": raw_id,

@@ -125,6 +125,7 @@ class ImdbClient:
       response = requests.post(BASE_URL, headers=HEADERS, json=payload)
       if response.status_code != 200:
         print(f"Response: {response.text}")
+        print(f"Response: {response}")
         response.raise_for_status()
       return response.json()
 
