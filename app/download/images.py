@@ -118,8 +118,6 @@ def format_image(db,
 
     image = Image.open(BytesIO(content))
 
-    print("")
-    print("result:", path_str, target_width, target_height, is_cropped)
     try:
         if target_width:
             image = resize_image(image, target_width)
@@ -132,10 +130,12 @@ def format_image(db,
         filename = f"{image_asset_id}.webp"
 
         object_key = path_str + "/" + filename
-        public_domain = os.environ.get("CLOUDFLARE_PUBLIC_DOMAIN")
+        public_domain = os.environ.get("CLOUDFLARE_ENDPOINT")
 
         if object_key and public_domain:
             public_url = f"https://{public_domain}/{object_key}"
+        else:
+            raise Exception(f"public_domain = {public_domain}, object_key = {object_key}")
 
         buffer = BytesIO()
         image.save(buffer, format="WEBP", quality=quality)
@@ -232,7 +232,7 @@ def loop_through(db, s3, results, save_download=False):
         try:
             content, content_type, sha256 = download_image(source_url)
             print("")
-            print("")
+            print(f"Image Asset ID: {image_asset_id}")
             print(f"Downloaded {source_url}")
             print(f"Content type: {content_type}")
             print(f"Sha256: {sha256}")
@@ -240,29 +240,13 @@ def loop_through(db, s3, results, save_download=False):
             for variant_needed in result.get("variants_needed"):
                 original_content = content
                 if variant_needed.get("needs_variant"):
-                    format_image(db=db,
+                    image_asset_id = format_image(db=db,
                                  s3=s3,
                                  source_url=source_url,
                                  result=variant_needed,
                                  content=original_content,
                                  content_type=content_type,
                                  save_download=save_download,)
-
-            db.conn.execute("""
-                update image_asset
-                    set source_content_type = %(content_type)s, 
-                        source_sha256 = %(sha256)s, 
-                        status = 'cached'
-                where image_asset_id = %(image_asset_id)s 
-                """,
-                {
-                    "content_type": content_type,
-                    "sha256": sha256,
-                    "image_asset_id": image_asset_id,
-                })
-            db.conn.commit()
-
-
             print("")
             print("")
 
@@ -272,19 +256,21 @@ def loop_through(db, s3, results, save_download=False):
             print(f"Error downloading {source_url}")
             print(f"Error message: {error_message}")
 
+        if not image_asset_id: continue
+
         print(f"image_asset_id: {image_asset_id}")
-
         status = 'failed' if error_message else 'cached'
-
+        attempts = 0 if error_message else 1
+        current_time = datetime.now(timezone.utc)
         db.conn.execute("""
             update image_asset 
                set source_content_type = %(content_type)s, 
                    source_sha256 = %(sha256)s, 
                    error_message = %(error_message)s,
                    status = %(status)s, 
-                   attempt_count = image_asset.attempt_count + 1,
-                   last_checked_at = now(), 
-                   updated_at = now()
+                   attempt_count = image_asset.attempt_count + %(attempts)s,
+                   last_checked_at = %(last_checked_at)s, 
+                   updated_at = %(updated_at)s
              where image_asset_id = %(image_asset_id)s
         """, {
             "content_type": content_type,
@@ -292,6 +278,9 @@ def loop_through(db, s3, results, save_download=False):
             "error_message": error_message,
             "status": status,
             "image_asset_id": image_asset_id,
+            "last_checked_at": current_time,
+            "updated_at": current_time,
+            "attempts": attempts,
         })
         db.conn.commit()
 
@@ -358,7 +347,9 @@ def resize_and_crop(img, target_width, target_height=None):
     return cropped
 
 
-def run_download(db, save_download=False):
+def run_images_download(db=None, save_download=False):
+    db = db or DatabaseConn()
+
     s3 = boto3.client(
         service_name="s3",
         endpoint_url=os.environ.get("CLOUDFLARE_ENDPOINT"),
@@ -427,7 +418,7 @@ if __name__ == "__main__":
         print("-------------------------------")
         print("No download option is selected.")
         print()
-    else: run_download(db, save_download=args.save_download)
+    else: run_images_download(db, save_download=args.save_download)
 
 
 

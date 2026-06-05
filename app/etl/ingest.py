@@ -4,6 +4,7 @@ import pprint
 import json
 from importlib import reload
 
+from app.download.images import run_images_download
 from app.etl.fetch_json import ImdbClient
 from app.etl.db_conn import DatabaseConn
 from app.etl.insert_raw_payload import save_raw_payload, mark_processed, get_last_processed_payload, update_movie
@@ -94,6 +95,8 @@ def ingest_trending(force: bool=False, count: int = 250):
             print(e)
 
     mark_processed(db, raw_id)
+
+    run_images_download(db)
 
 
 if __name__ == "__main__":
