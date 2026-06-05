@@ -124,8 +124,8 @@ class ImdbClient:
       
       response = requests.post(BASE_URL, headers=HEADERS, json=payload)
       if response.status_code != 200:
-          print(f"Response: {response.text}")
-      response.raise_for_status()
+        print(f"Response: {response.text}")
+        response.raise_for_status()
       return response.json()
 
   def extract_movie_info(self, data):
