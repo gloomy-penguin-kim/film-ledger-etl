@@ -23,6 +23,8 @@ def ingest_trending(force: bool=False, count: int = 250):
         source="imdb_trending",
         version=VERSION)
 
+    print("result", result)
+
     if result and not force:
         if result.get("processed_at"): 
             print("Last payload already processed")
@@ -38,6 +40,7 @@ def ingest_trending(force: bool=False, count: int = 250):
             source="imdb_trending", 
             version=VERSION, 
             payload=json.dumps(data),
+            count=count,
         )  
     
     movies = imdb_client.extract_movie_info(data)
@@ -77,8 +80,14 @@ def ingest_trending(force: bool=False, count: int = 250):
             db.conn.rollback()
             db.conn.execute("""
                 insert into errors (error_message, payload_id, media_id, media_imdb_id, sql_query)
-                values (%s, %s, %s, %s, %s)
-                """, (str(e), raw_id, media_id, media_imdb_id, json.dumps(sql_query)))
+                values (%(error)s, %(raw_id)s, %(media_id)s, %(media_imdb_id)s, %(querys)s)
+                """, {
+                    "error": str(e),
+                    "raw_id": raw_id,
+                    "media_id": media_id,
+                    "media_imdb_id": media_imdb_id,
+                    "query": json.dumps(sql_query),
+                })
             db.conn.commit()
             if raw_id:
                 db.conn.execute("""

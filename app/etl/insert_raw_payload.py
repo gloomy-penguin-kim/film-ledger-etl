@@ -5,8 +5,7 @@ def update_movie(conn, movie_id: str):
     """
     sql = """
              SELECT
-                m.media_id,
-            
+                m.media_id, 
                 (
                     m.updated_at < now() - interval '2 months'
                     AND (
@@ -73,13 +72,13 @@ def get_last_processed_payload(conn, source: str, version: int):
         return None
 
 
-def save_raw_payload(conn, source: str, version: int, payload: str):
+def save_raw_payload(conn, source: str, version: int, payload: str, count: int):
     """
     Save the raw JSON payload to the database.
     """
     sql = """
-    INSERT INTO raw_imdb_payloads (source, version, payload)
-    VALUES (%s, %s, %s)
+    INSERT INTO raw_imdb_payloads (source, version, payload, count)
+    VALUES (%s, %s, %s, %s)
     RETURNING id
     """
     try:
