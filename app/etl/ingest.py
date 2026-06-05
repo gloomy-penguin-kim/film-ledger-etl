@@ -1,8 +1,6 @@
 # fetch → insert raw JSON → normalize → upsert rows
 import argparse
-import pprint
 import json
-from importlib import reload
 
 from app.download.images import run_images_download
 from app.etl.fetch_json import ImdbClient
@@ -112,12 +110,12 @@ if __name__ == "__main__":
     # Parse the arguments
     args = parser.parse_args()
 
-    if args.drop:
-        args.schema = True
-        args.view = True
-
-    if args.drop:
-        db.drop_tables()
+    # if args.drop:
+    #     args.schema = True
+    #     args.view = True
+    #
+    # if args.drop:
+    #     db.drop_tables()
 
     if args.schema:
         db.create_default_schema()

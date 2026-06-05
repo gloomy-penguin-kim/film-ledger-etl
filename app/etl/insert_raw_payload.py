@@ -54,13 +54,13 @@ def get_last_processed_payload(conn, source: str, version: int):
     Retrieve the last processed payload for a given source and source_key.
     """
     sql = """
-    SELECT  id, payload, fetched_at, processed_at
-    FROM    raw_imdb_payloads
-    WHERE   source = %s AND  
-            version = %s AND
-            fetched_at::date >= CURRENT_DATE - interval '1 hour'
-    ORDER   BY fetched_at DESC
-    LIMIT 1
+        SELECT  id, payload, fetched_at, processed_at
+        FROM    raw_imdb_payloads   
+        WHERE   source = %s AND  
+                version = %s AND 
+                fetched_at >= now() - interval '1 hour' 
+        ORDER   BY fetched_at DESC, processed_at DESC
+        LIMIT 1
     """
     try:
         with conn.execute(sql, (source, version)) as cur: 
