@@ -2,13 +2,55 @@ WITH needed AS (
     SELECT DISTINCT
         ia.image_asset_id,
         ia.source_url,
+        ial.owner_type,
+        ial.owner_id,
+        ial.image_kind,
+        provider_code as description,
+        v.variant_id,
+        v.path_str,
+        v.target_width,
+        v.target_height,
+        v.is_cropped,
+        iv.image_variant_id,
+        iv.status,
+        iv.cached_at,
+        (
+            iv.image_variant_id IS NULL
+            OR iv.status <> 'cached'
+            OR iv.cached_at IS NULL
+            OR iv.cached_at <= NOW() - INTERVAL '6 months'
+        ) AS needs_variant
+    FROM image_asset ia
+    JOIN image_asset_link ial
+        ON ial.image_asset_id = ia.image_asset_id
+    JOIN variant v
+        ON v.image_kind = ial.image_kind
+    LEFT JOIN image_variant iv
+        ON iv.image_asset_id = ia.image_asset_id
+       AND iv.variant_id = v.variant_id
+     join provider pp
+        on pp.provider_id = ial.owner_id and
+            ial.owner_type = 'provider'
+
+    WHERE  v.active = true and
+        (
+            iv.image_variant_id IS NULL
+            OR iv.status <> 'cached'
+            OR iv.cached_at IS NULL
+            OR iv.cached_at <= NOW() - INTERVAL '6 months'
+        )
+
+UNION
+
+    SELECT DISTINCT
+        ia.image_asset_id,
+        ia.source_url,
 
         ial.owner_type,
         ial.owner_id,
         ial.image_kind,
 
-        --COALESCE(m.media_title, p.person_name, pp.provider_name) as description,
-        m.media_title as description,
+        p.person_name as description,
 
         v.variant_id,
         v.path_str,
@@ -25,9 +67,61 @@ WITH needed AS (
             OR iv.status <> 'cached'
             OR iv.cached_at IS NULL
             OR iv.cached_at <= NOW() - INTERVAL '6 months'
-        ) AS needs_variant,
+        ) AS needs_variant
 
-        m.raw_json
+    FROM image_asset ia
+    JOIN image_asset_link ial
+        ON ial.image_asset_id = ia.image_asset_id
+    JOIN variant v
+        ON v.image_kind = ial.image_kind
+    LEFT JOIN image_variant iv
+        ON iv.image_asset_id = ia.image_asset_id
+       AND iv.variant_id = v.variant_id
+     join
+         (select p.*
+          from person p
+                   join media_person mp
+                        on mp.person_id = p.person_id
+                   join media m
+                        on m.media_id = mp.media_id
+                   join trending_snapshot_recent ts
+                        on ts.media_id = m.media_id)  p
+        on p.person_id = ial.owner_id and
+            ial.owner_type = 'people'
+
+
+    WHERE  v.active = true and
+        (
+            iv.image_variant_id IS NULL
+            OR iv.status <> 'cached'
+            OR iv.cached_at IS NULL
+            OR iv.cached_at <= NOW() - INTERVAL '6 months'
+        )
+
+
+UNION
+
+    SELECT DISTINCT
+        ia.image_asset_id,
+        ia.source_url,
+        ial.owner_type,
+        ial.owner_id,
+        ial.image_kind,
+        m.media_title as description,
+        v.variant_id,
+        v.path_str,
+        v.target_width,
+        v.target_height,
+        v.is_cropped,
+        iv.image_variant_id,
+        iv.status,
+        iv.cached_at,
+        (
+            iv.image_variant_id IS NULL
+            OR iv.status <> 'cached'
+            OR iv.cached_at IS NULL
+            OR iv.cached_at <= NOW() - INTERVAL '6 months'
+        ) AS needs_variant
 
     FROM image_asset ia
     JOIN image_asset_link ial
@@ -38,23 +132,17 @@ WITH needed AS (
         ON iv.image_asset_id = ia.image_asset_id
        AND iv.variant_id = v.variant_id
 
-    join media m
+     join (
+            select    m.*
+            from      media m
+                      join trending_snapshot_recent ts
+                        on ts.media_id = m.media_id
+        ) m
         on m.media_id = ial.owner_id and
             ial.owner_type = 'media'
 
---     left outer join media m
---         on m.media_id = ial.owner_id and
---             ial.owner_type = 'media'
---
---     left outer join person p
---         on p.person_id = ial.owner_id and
---             ial.owner_type = 'people'
---
---     left outer join provider pp
---         on pp.provider_id = ial.owner_id and
---             ial.owner_type = 'provider'
 
-    WHERE
+    WHERE  v.active = true and
         (
             iv.image_variant_id IS NULL
             OR iv.status <> 'cached'
@@ -68,7 +156,7 @@ SELECT
     owner_id,
     image_kind,
     description,
-    source_url, raw_json,
+    source_url,
     jsonb_agg(
         jsonb_build_object(
             'description', description,
@@ -89,5 +177,5 @@ SELECT
         ORDER BY owner_type, owner_id, image_kind
     ) AS variants_needed
 FROM needed
-GROUP BY owner_type, owner_id, description, source_url, image_kind, raw_json
-ORDER BY owner_type, owner_id, description, source_url, image_kind, raw_json
+GROUP BY owner_type, owner_id, description, source_url, image_kind
+ORDER BY owner_type, owner_id, description, source_url, image_kind

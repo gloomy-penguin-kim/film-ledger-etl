@@ -99,7 +99,7 @@ def upsert_media(conn, media: dict[str, Any], full_download=False) -> int | None
                 "description": media.get("good_image").get("caption")
             })
 
-            print(f"{media.get('title')} - {media.get('title_type')} - {media.get('good_image').get('url')}")
+            #print(f"{media.get('title')} - {media.get('title_type')} - {media.get('good_image').get('url')}")
             return results[0]
         return None
 

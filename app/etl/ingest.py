@@ -12,9 +12,8 @@ from app.etl.upsert_images import insert_image
 from app.etl.upsert_media import upsert_media
 from app.etl.upsert_trending import upsert_trending_snapshot
 from app.etl.upsert_people import upsert_people, upsert_enhanced
-from app.etl.upsert_tables import upsert_keywords, upsert_languages, upsert_genres, upsert_connections, \
-    upsert_countries
-from app.etl.upsert_similar_titles import upsert_similar_titles
+from app.etl.upsert_tables import upsert_keywords, upsert_languages, upsert_genres, upsert_countries
+from app.etl.upsert_similar_titles import upsert_similar_titles, upsert_connections
 from app.etl.upsert_streaming import upsert_streaming_availability
 
 imdb_client = ImdbClient()
@@ -66,7 +65,7 @@ def update_similar_connections_after(db):
                     where m.media_imdb_id = ep.episode_media_imdb_id
                       and ep.episode_media_id is null
                     """)
-    # db.conn.commit()
+    db.conn.commit()
 
 
 def update_similar_connections(db):
@@ -104,16 +103,16 @@ def update_similar_connections(db):
                 # db.conn.rollback()
                 # update_similar_connections_after(db)
                 # return
-    update_similar_connections_after(db)
     print("DONE - Updating similar connections")
 
 
 def run_update(db,
                media_imdb_id=None,
                force=False,
-               similar_titles=True,
-               connections=True,
-               episodes=True
+               similar_titles=False,
+               connections=False,
+               episodes=False,
+               process_images=True,
                ) -> int | None:
     if not media_imdb_id: return None
     conn = db.connect()
@@ -195,7 +194,7 @@ def ingest_trending(force: bool=False,
 
     if result and not force:
         if result.get("processed_at"): 
-            print("Last payload already processed")
+            print("Latest payload already processed")
             return 
         else: 
             print("Using last fetched payload that has not been processed yet.")
@@ -209,10 +208,14 @@ def ingest_trending(force: bool=False,
             version=VERSION, 
             payload=json.dumps(data),
             count=count,
-        )  
+        )
     
     movies = imdb_client.extract_movie_info(data)
     # movies = [{ "id": "tt0118276", "rank": 1 }]
+
+    if count > len(movies):
+        print(f"Truncated movies count to {count} rows.")
+        movies = movies[:count]
 
     update_similar_connections_after(db)
 
@@ -228,8 +231,8 @@ def ingest_trending(force: bool=False,
             media_id = run_update(db=db,
                                   media_imdb_id=media_imdb_id,
                                   force=force,
-                                  similar_titles=False,
-                                  connections=False,
+                                  similar_titles=True,
+                                  connections=True,
                                   )
 
             trending_arr.append({"media_id": media_id, "rank": movie.get("rank")})
@@ -263,27 +266,26 @@ def ingest_trending(force: bool=False,
             if sql_query: print(f"Json Data: {sql_query}")
             print(e)
 
-    try:
-        db.conn.commit()
-        update_similar_connections(db)
-        db.conn.commit()
+    db.conn.commit()
+    # try:
+    #     update_similar_connections(db)
+    #     db.conn.commit()
+    #
+    # except Exception as e:
+    #     print("Exception caught!")
+    #     print(e)
 
-    except Exception as e:
-        print("Exception caught!")
-        print(e)
-
-    if trending:
+    if trending and len(trending_arr) >= 25:
         upsert_trending_snapshot(db, trending_arr)
 
     mark_processed(db, raw_id)
 
-
-    # try:
-    #     from app.download.images import run_images_download
-    #     run_images_download(db, count=0)
-    # except Exception as e:
-    #     db.conn.rollback()
-    #     print(f"Exception: {e}")
+    try:
+        from app.download.images import run_images_download
+        run_images_download(db, count=0)
+    except Exception as e:
+        db.conn.rollback()
+        print(f"Exception: {e}")
 
 if __name__ == "__main__":
     # Create the parser

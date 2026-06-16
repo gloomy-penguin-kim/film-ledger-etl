@@ -36,15 +36,61 @@ def upsert_similar_titles(conn, media_id: int, media: dict[str, Any]) -> None:
 
         related_media_id = results.fetchone()[0]
 
-        if poster_url and related_media_id:
-            insert_image(conn, {
-                         "owner_id"   : related_media_id,
-                         "owner_type" : "media",
-                         "image_kind" : "poster",
-                         "source_url" : poster_url,
-                         "is_primary" : True
-            })
+        # if poster_url and related_media_id:
+        #     insert_image(conn, {
+        #                  "owner_id"   : related_media_id,
+        #                  "owner_type" : "media",
+        #                  "image_kind" : "poster",
+        #                  "source_url" : poster_url,
+        #                  "is_primary" : True
+        #     })
 
 
+
+
+def upsert_connections(conn, media_id: int, media: dict[str, Any]) -> None:
+    connections = media.get("connections") or []
+
+    for connection in connections:
+        connection_name = connection.get("relationship").strip()
+
+        if not connection_name:
+            continue
+
+        with conn.execute(
+                """
+                INSERT INTO connection (connection_name)
+                VALUES (%s)
+                ON CONFLICT (connection_name) 
+                    DO UPDATE SET connection_name = EXCLUDED.connection_name 
+                RETURNING connection_id;
+                """,
+                (connection_name,),
+        ) as cur:
+            connection_id = cur.fetchone()[0]
+
+        conn.execute(
+            """
+            INSERT INTO media_connection (media_id, 
+                                          related_media_id, 
+                                          related_media_imdb_id,  
+                                          connection_id)
+                SELECT %(media_id)s, 
+                       m.media_id as related_media_id, 
+                       imdb.imdb_id,  
+                       %(connection_id)s
+                FROM   (select %(related_media_imdb_id)s as imdb_id) as imdb 
+                        left outer join media m 
+                            on m.media_imdb_id = imdb.imdb_id
+                LIMIT 1 
+            ON CONFLICT (media_id, related_media_imdb_id, connection_id)
+            DO NOTHING;
+            """,
+            {
+                "media_id": media_id,
+                "related_media_imdb_id": connection.get("id"),
+                "connection_id": connection_id,
+            },
+        )
 
 

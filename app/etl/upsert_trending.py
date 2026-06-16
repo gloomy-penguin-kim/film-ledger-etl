@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+import pprint
 
 
 def upsert_trending_snapshot(
@@ -9,25 +10,28 @@ def upsert_trending_snapshot(
     print("")
     print("upsert_trending_snapshot")
 
-    for media_id, rank in trending_arr:
+    try:
+        for a in trending_arr:
+            sql = """
+                  INSERT INTO trending_snapshot (media_id, 
+                                                 rank, 
+                                                 snapshot_date)
+                  VALUES (%(media_id)s, 
+                          %(rank)s, 
+                          date_trunc('hour', now() + interval '30 minutes')  
+                         ) 
+                  ON CONFLICT (media_id, snapshot_date)
+                  DO NOTHING  
+                  """
+            print(a)
+            db.conn.execute(
+                sql,
+                a,
+            )
+        db.conn.commit()
+    except Exception as e:
+        print(e)
+        db.conn.rollback()
 
-        sql = """
-              INSERT INTO trending_snapshot (media_id, 
-                                             rank, 
-                                             snapshot_date)
-              VALUES (%(media_id)s, 
-                      %(rank)s, 
-                      date_trunc('hour', now() + interval '30 minutes')  
-                     ) 
-              ON CONFLICT (media_id, snapshot_date)
-              DO NOTHING  
-              """
 
-        db.conn.execute(
-            sql,
-            {
-                "media_id": media_id,
-                "rank": rank
-            },
-        )
 
