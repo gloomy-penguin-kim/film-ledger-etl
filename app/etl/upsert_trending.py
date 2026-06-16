@@ -10,6 +10,11 @@ def upsert_trending_snapshot(
     print("")
     print("upsert_trending_snapshot")
 
+    db.conn.execute("""
+        delete from trending_snapshot
+        where snapshot_date = date_trunc('hour', now() + interval '30 minutes') 
+    """)
+
     try:
         for a in trending_arr:
             sql = """
