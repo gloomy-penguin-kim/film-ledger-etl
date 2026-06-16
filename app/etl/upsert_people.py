@@ -33,7 +33,7 @@ def upsert_people(conn, media_id: int, media: dict[str, Any]) -> None:
                 (person_imdb_id, person_name, person_image),
             ) as cur:
                 fetch_one = cur.fetchone()
-                if not fetch_one:
+                if not fetch_one or len(fetch_one) == 0:
                     continue
                 person_id = fetch_one[0]
 
@@ -46,54 +46,56 @@ def upsert_people(conn, media_id: int, media: dict[str, Any]) -> None:
                         RETURNING image_asset_id;
                     """, (person_image,)) as curr:
                         fetch_two = curr.fetchone()
-                        if not fetch_two:
+                        if not fetch_two or len(fetch_two) == 0:
                             continue
                         image_asset_id = fetch_two[0]
                         conn.execute("""
                             INSERT INTO image_asset_link (image_asset_id, owner_type, owner_id,
-                                        image_kind, is_primary, created_at, updated_at)
+                                        image_kind, created_at, updated_at)
                                 VALUES (%(image_asset_id)s, 'people', %(person_id)s, 'headshot',
-                                          true, NOW(), NOW())
+                                          NOW(), NOW())
                             ON CONFLICT (image_asset_id, image_kind, owner_type, owner_id) DO NOTHING;
                         """, { "image_asset_id": image_asset_id,
                                "person_id": person_id})
 
-            characters = credit.get("characters") or []
+                characters = credit.get("characters") or []
 
-            conn.execute(
-                """
-                INSERT INTO media_person (
-                    media_id,
-                    person_id,
-                    credit_category,
-                    character_names
+                conn.execute(
+                    """
+                    INSERT INTO media_person (
+                        media_id,
+                        person_id,
+                        credit_category,
+                        character_names
+                    )
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (media_id, person_id, credit_category)
+                    DO UPDATE SET
+                        character_names = EXCLUDED.character_names;
+                    """,
+                    (
+                        media_id,
+                        person_id,
+                        category,
+                        characters,
+                    ),
                 )
-                VALUES (%s, %s, %s, %s)
-                ON CONFLICT (media_id, person_id, credit_category)
-                DO UPDATE SET
-                    character_names = EXCLUDED.character_names;
-                """,
-                (
-                    media_id,
-                    person_id,
-                    category,
-                    characters,
-                ),
-            )
 
 
 
 
 def upsert_enhanced(conn, media_id: int, media: dict[str, Any]) -> None:
-    enhanced_actors = media.get("enhanced_actors") or []
+    enhanced = ((media.get("enhanced_actors") or []) +
+                (media.get("enhanced_directors") or []) +
+                (media.get("enhanced_creators") or []))
 
-    for actor in enhanced_actors:
-        if not actor:
+    for person in enhanced:
+        if not person:
             continue
 
-        person_imdb_id = actor.get("url").split("/")[-2] if actor.get("url") else None
-        person_name = actor.get("name")
-        person_image = actor.get("profile_image")
+        person_imdb_id = person.get("url").split("/")[-2] if person.get("url") else None
+        person_name = person.get("name")
+        person_image = person.get("profile_image")
 
         if not person_imdb_id or not person_name:
             continue
@@ -120,7 +122,7 @@ def upsert_enhanced(conn, media_id: int, media: dict[str, Any]) -> None:
                 conn.execute(
                     """
                     update  media_person mp
-                    set     enhanced_actor = true
+                    set     enhanced = true
                     from    person p
                         where   mp.person_id = p.person_id
                                 and mp.person_id = %s

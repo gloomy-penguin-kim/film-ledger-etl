@@ -1,12 +1,13 @@
 from typing import Any
 import json
+import pprint
 
-from app.etl.upsert_streaming import upsert_media_poster_image
+from datetime import datetime, timezone
+
+from app.etl.upsert_images import insert_image
 
 
-def upsert_media(conn, media: dict[str, Any]) -> int | None:
-    image_dimensions = media.get("image_dimensions") or {}
-
+def upsert_media(conn, media: dict[str, Any], full_download=False) -> int | None:
     sql = """
         INSERT INTO media (
             media_imdb_id,
@@ -21,6 +22,8 @@ def upsert_media(conn, media: dict[str, Any]) -> int | None:
             media_plot, 
             media_certificate, 
             media_production_status,
+            media_metascore, 
+            full_download, 
             raw_json,
             updated_at
         )
@@ -37,6 +40,8 @@ def upsert_media(conn, media: dict[str, Any]) -> int | None:
             %(media_plot)s, 
             %(media_certificate)s,
             %(media_production_status)s,
+            %(media_metascore)s, 
+            %(full_download)s,
             %(raw_json)s::jsonb,
             now()
         )
@@ -53,11 +58,14 @@ def upsert_media(conn, media: dict[str, Any]) -> int | None:
             media_plot = EXCLUDED.media_plot, 
             media_certificate = EXCLUDED.media_certificate,
             media_production_status = EXCLUDED.media_production_status,
+            media_metascore = EXCLUDED.media_metascore,
+            full_download = EXCLUDED.full_download,
             raw_json = EXCLUDED.raw_json,
             updated_at = now()
         RETURNING media_id;
     """
 
+    current_time = datetime.now(timezone.utc)
     params = {
         "media_imdb_id": media.get("id"),
         "media_title": media.get("title"),
@@ -71,14 +79,27 @@ def upsert_media(conn, media: dict[str, Any]) -> int | None:
         "media_plot": media.get("plot"),
         "media_certificate": media.get("certificate"),
         "media_production_status": media.get("production_status"),
+        "media_metascore": media.get("metascore"),
+        "full_download": current_time if full_download else media.get("full_download"),
         "raw_json": json.dumps(media),
     }
 
     with conn.execute(sql, params) as cur:
         results = cur.fetchone()
         if results:
-            media_id = results[0]
-            upsert_media_poster_image(conn, media_id, media)
-            return media_id
+            #upsert_media_poster_image(conn, media_id, media)
+            insert_image(conn, {
+                "owner_id": results[0],
+                "owner_type": "media",
+                "image_kind": "poster",
+                "source_url": media.get("good_image").get("url"),
+                "width": media.get("good_image").get("width"),
+                "height": media.get("good_image").get("height"),
+                "is_primary": False,
+                "description": media.get("good_image").get("caption")
+            })
+
+            print(f"{media.get('title')} - {media.get('title_type')} - {media.get('good_image').get('url')}")
+            return results[0]
         return None
 

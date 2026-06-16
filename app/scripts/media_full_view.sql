@@ -6,8 +6,6 @@ CREATE OR REPLACE VIEW image_choice_media AS
 SELECT
     ial.owner_id AS media_id,
     ial.image_kind,
-    ial.is_primary,
-    ial.sort_order,
 
     ia.image_asset_id,
     ia.source_provider,
@@ -30,7 +28,8 @@ SELECT
     iv.cached_at,
 
     v.variant_id,
-    v.variant_key,
+    v.variant_name,
+    v.path_str,
     v.target_width,
     v.target_height,
     v.is_cropped
@@ -43,6 +42,49 @@ LEFT JOIN image_variant iv
 LEFT JOIN variant v
     ON v.variant_id = iv.variant_id
 WHERE ial.owner_type = 'media';
+
+
+CREATE OR REPLACE VIEW image_choice_people AS
+SELECT
+    ial.owner_id AS people_id,
+    ial.image_kind,
+
+    ia.image_asset_id,
+    ia.source_provider,
+    ia.source_url,
+    ia.source_width,
+    ia.source_height,
+    ia.status AS asset_status,
+
+    iv.image_variant_id,
+    iv.public_url,
+    iv.object_key,
+    iv.storage_provider,
+    iv.storage_bucket,
+    iv.content_type,
+    iv.width,
+    iv.height,
+    iv.byte_size,
+    iv.sha256,
+    iv.status AS variant_status,
+    iv.cached_at,
+
+    v.variant_id,
+    v.variant_name,
+    v.path_str,
+    v.target_width,
+    v.target_height,
+    v.is_cropped
+
+FROM image_asset_link ial
+JOIN image_asset ia
+    ON ia.image_asset_id = ial.image_asset_id
+LEFT JOIN image_variant iv
+    ON iv.image_asset_id = ia.image_asset_id
+LEFT JOIN variant v
+    ON v.variant_id = iv.variant_id
+WHERE ial.owner_type = 'people';
+
 
 
 CREATE OR REPLACE VIEW image_choice_provider AS
@@ -73,7 +115,8 @@ SELECT
     iv.cached_at,
 
     v.variant_id,
-    v.variant_key,
+    v.variant_name,
+    v.path_str,
     v.target_width,
     v.target_height,
     v.is_cropped
@@ -117,7 +160,7 @@ SELECT
       'image_variant_id', poster.image_variant_id,
       'image_kind', poster.image_kind,
       'variant_id', poster.variant_id,
-      'variant_key', poster.variant_key,
+      'path_str', poster.path_str,
       'source_provider', poster.source_provider,
       'source_url', poster.source_url,
       'public_url', poster.public_url,
@@ -150,7 +193,7 @@ SELECT
       'image_variant_id', backdrop.image_variant_id,
       'image_kind', backdrop.image_kind,
       'variant_id', backdrop.variant_id,
-      'variant_key', backdrop.variant_key,
+      'path_str', backdrop.path_str,
       'source_url', backdrop.source_url,
       'public_url', backdrop.public_url,
       'width', backdrop.width,
@@ -203,7 +246,7 @@ SELECT
             'image_variant_id', provider_logo.image_variant_id,
             'image_kind', provider_logo.image_kind,
             'variant_id', provider_logo.variant_id,
-            'variant_key', provider_logo.variant_key,
+            'path_str', provider_logo.path_str,
             'source_url', provider_logo.source_url,
             'public_url', provider_logo.public_url,
             'width', provider_logo.width,

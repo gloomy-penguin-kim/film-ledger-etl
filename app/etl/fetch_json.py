@@ -3,6 +3,8 @@
 Download trending movies from IMDb using GraphQL API
 """
 import os
+from typing import Any
+
 import requests
 import json
 import time
@@ -431,7 +433,7 @@ class ImdbClient:
                 }
                  
                 
-                  keywords(first: 5) {
+                  keywords(first: 20) {
                     edges {
                       node {
                         text
@@ -467,7 +469,7 @@ class ImdbClient:
                 reviews(first: 1) {
                   total
                 }
-                connections {
+                connections(first: 5) {
                   edges {
                     node {
                       associatedTitle {
@@ -485,7 +487,7 @@ class ImdbClient:
                     }
                   }
                 }
-                moreLikeThisTitles(first: 5) {
+                moreLikeThisTitles(first: 8) {
                   edges {
                     node {
                       id
@@ -546,7 +548,7 @@ class ImdbClient:
                       }
                     }
                   }
-                }
+                } 
                 goofs(first: 3) {
                   edges {
                     node {
@@ -564,7 +566,6 @@ class ImdbClient:
                 'id': movie_id
             }
         }
-        
       response = requests.post(BASE_URL, headers=HEADERS, json=payload)
       if response.status_code != 200:
           print(f"Response: {response.text}")
@@ -574,8 +575,8 @@ class ImdbClient:
   def format_movie_details(self, data):
       """Format movie details for display"""
       title_data = data.get("data", {}).get("title", {})
-      if not title_data:
-          return None
+      if not title_data: return None
+
       
       # Basic info
       movie_id = title_data.get("id")
@@ -625,7 +626,16 @@ class ImdbClient:
       poster_url = primary_image.get("url") if primary_image else None
       image_width = primary_image.get("width") if primary_image else None
       image_height = primary_image.get("height") if primary_image else None
-      
+
+
+      good_image = {
+          "url": poster_url,
+          "width": image_width,
+          "height": image_height
+      }
+
+      print(f"{title} - {title_type} - {good_image.get('url')}")
+
       # Certificate
       cert_data = title_data.get("certificate")
       certificate = cert_data.get("rating") if cert_data else None
@@ -780,7 +790,7 @@ class ImdbClient:
       keyword_data = title_data.get("keywords")
       if keyword_data and isinstance(keyword_data, dict):
           keyword_edges = keyword_data.get("edges", [])
-          for edge in keyword_edges[:10]:  # Limit to first 10
+          for edge in keyword_edges[:15]:  # Limit to first 15
               if edge and edge.get("node"):
                   keyword_text = edge["node"].get("text")
                   if keyword_text:
@@ -837,9 +847,9 @@ class ImdbClient:
                   if associated_title:
                       connections.append({
                           "id": associated_title.get("id"),
-                          "title": associated_title.get("titleText", {}).get("text"),
-                          "year": associated_title.get("releaseYear", {}).get("year"),
-                          "relationship": node.get("category", {}).get("text")
+                          "title": (associated_title.get("titleText") or {}).get("text"),
+                          "year": (associated_title.get("releaseYear") or {}).get("year"),
+                          "relationship": (node.get("category") or {}).get("text")
                       })
       
       # More like this titles
@@ -847,7 +857,7 @@ class ImdbClient:
       similar_data = title_data.get("moreLikeThisTitles")
       if similar_data and isinstance(similar_data, dict):
           similar_edges = similar_data.get("edges", [])
-          for edge in similar_edges[:5]:  # Limit to first 5
+          for edge in similar_edges[:7]:  # Limit to first 5
               if edge and edge.get("node"):
                   node = edge["node"]
                   image_data = node.get("primaryImage")
@@ -872,6 +882,9 @@ class ImdbClient:
       # Image gallery only (videos removed due to API limitations)
       image_gallery = []
       image_data = title_data.get("imageGallery")
+
+      biggest_area = 0
+      biggest_index = 0
       if image_data and isinstance(image_data, dict):
           image_edges = image_data.get("edges", [])
           for edge in image_edges:
@@ -883,30 +896,35 @@ class ImdbClient:
                       "width": node.get("width"),
                       "height": node.get("height")
                   })
-      
+                  if node.get("width") > biggest_area:
+                      biggest_area = node.get("width")
+                      biggest_index = len(image_gallery) - 1
+
+      #good_image = image_gallery[biggest_index] if len(image_gallery) > 0 else {}
+
       video_gallery = []  # Removed due to API limitations
       
-      # Trivia
+      # # Trivia
       trivia_items = []
-      trivia_data = title_data.get("trivia")
-      if trivia_data and isinstance(trivia_data, dict):
-          trivia_edges = trivia_data.get("edges", [])
-          for edge in trivia_edges:
-              if edge and edge.get("node"):
-                  text_data = edge["node"].get("text")
-                  if text_data and text_data.get("plainText"):
-                      trivia_items.append(text_data["plainText"])
-      
-      # Goofs
+      # trivia_data = title_data.get("trivia")
+      # if trivia_data and isinstance(trivia_data, dict):
+      #     trivia_edges = trivia_data.get("edges", [])
+      #     for edge in trivia_edges:
+      #         if edge and edge.get("node"):
+      #             text_data = edge["node"].get("text")
+      #             if text_data and text_data.get("plainText"):
+      #                 trivia_items.append(text_data["plainText"])
+      #
+      # # Goofs
       goof_items = []
-      goof_data = title_data.get("goofs")
-      if goof_data and isinstance(goof_data, dict):
-          goof_edges = goof_data.get("edges", [])
-          for edge in goof_edges:
-              if edge and edge.get("node"):
-                  text_data = edge["node"].get("text")
-                  if text_data and text_data.get("plainText"):
-                      goof_items.append(text_data["plainText"])
+      # goof_data = title_data.get("goofs")
+      # if goof_data and isinstance(goof_data, dict):
+      #     goof_edges = goof_data.get("edges", [])
+      #     for edge in goof_edges:
+      #         if edge and edge.get("node"):
+      #             text_data = edge["node"].get("text")
+      #             if text_data and text_data.get("plainText"):
+      #                 goof_items.append(text_data["plainText"])
       
       # Removed episode navigation fields due to API limitations
       next_ep_info = None
@@ -977,6 +995,11 @@ class ImdbClient:
                       "title": title_text,
                       "country": country_text
                   })
+
+      # print("is_series", is_series)
+      # print("series_info", series_info)
+      # print("episode_count", episode_count)
+      # print("metascore", metascore)
       
       return {
           "id": movie_id,
@@ -986,6 +1009,7 @@ class ImdbClient:
           "release_year": release_year,
           "release_date": full_release_date,
           "runtime_minutes": runtime_minutes,
+          "runtime_seconds": runtime_seconds,
           "rating": rating,
           "vote_count": vote_count,
           "metascore": metascore,
@@ -995,6 +1019,7 @@ class ImdbClient:
           "image_dimensions": {"width": image_width, "height": image_height} if image_width and image_height else None,
           "image_count": image_count,
           "video_count": video_count,
+          "good_image": good_image,
           "certificate": certificate,
           "languages": languages,
           "countries": countries,
@@ -1026,8 +1051,76 @@ class ImdbClient:
           "image_gallery": image_gallery,
           "trivia_items": trivia_items,
           "goof_items": goof_items
-
       }
+
+  def get_episode_data(self, series_id, after=0) -> list[Any]:
+      """Get episodes for a specific season of a TV series"""
+      variables = { "id": series_id, "first": 100 }
+      if after != 0:
+          variables["after"] = after
+
+      payload = {
+          "query": """query GetSeasonEpisodes($id: ID!, $first: Int!, $after: ID) {
+            title(id: $id) {
+              episodes {
+                episodes(first: $first, after: $after) {
+                  edges {
+                    node {
+                      id
+                      titleText { text }
+                      releaseDate { day month year }
+                      ratingsSummary { aggregateRating }
+                      plot { plotText { plainText } }
+                      primaryImage { url }
+                      runtime { seconds }
+                      series {
+                        episodeNumber {
+                          episodeNumber
+                          seasonNumber
+                        }
+                      }
+                    }
+                  }
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+                }
+              }
+            }
+          }""",
+          "operationName": "GetSeasonEpisodes",
+          "variables": variables
+      }
+
+      response = requests.post(BASE_URL, headers=HEADERS, json=payload)
+
+      if response.status_code == 200:
+          data = response.json()
+          if 'errors' in data:
+              print(f"❌ GraphQL errors: {data['errors']}")
+          episodes_container = data.get("data", {}).get("title", {}).get("episodes", {})
+          episodes_info = episodes_container.get("episodes", {})
+          episodes_data = episodes_info.get("edges", [])
+          page_info = episodes_info.get("pageInfo", {})
+
+          # Return all episodes without season filtering
+          episodes = []
+          for edge in episodes_data:
+              episode = edge.get("node", {})
+              episodes.append(episode)
+
+          if page_info.get("hasNextPage"):
+              after_cursor = page_info.get("endCursor")
+              episodes_after = self.get_episode_data(series_id, after_cursor)
+              episodes.extend(episodes_after)
+
+          return episodes
+      else:
+          print(f"❌ Error: {response.status_code}")
+          print(f"📄 Response text: {response.text}")
+          return []
+
 
   def get_streaming_availability(self, title_id):
       """Get streaming availability for a single title ID"""

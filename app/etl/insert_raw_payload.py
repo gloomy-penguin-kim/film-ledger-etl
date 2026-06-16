@@ -14,18 +14,7 @@ def update_movie(conn, movie_id: str):
                     )
                 ) OR (
                     m.updated_at < now() - interval '6 months'
-                ) AS needs_a_refresh,
-            
-                NOT EXISTS (
-                    SELECT 1
-                    FROM image_asset_link ial
-                    JOIN image_asset ia
-                        ON ia.image_asset_id = ial.image_asset_id
-                    WHERE ial.owner_type = 'media'
-                      AND ial.owner_id = m.media_id
-                      AND ial.image_kind = 'poster'
-                      AND ia.source_url IS NOT NULL
-                ) AS missing_image
+                ) AS needs_a_refresh 
             
             FROM media m
             WHERE m.media_imdb_id = %s
@@ -37,15 +26,12 @@ def update_movie(conn, movie_id: str):
           """
     try:
         with conn.execute(sql, (movie_id,)) as cur:
-            if cur.description:
-                columns = [desc[0] for desc in cur.description]
-                results = [dict(zip(columns, row)) for row in cur.fetchall()]
-                return results[0] if len(results) > 0 else None, True, True
-            return None, True, True
+            result = cur.fetchone()
+            return result if result else None, True
 
     except Exception as e:
         print(f"Error retrieving update info for movie {movie_id}: {e}")
-        return None, True, True
+        return None, True
 
 
 def get_last_processed_payload(conn, source: str, version: int):

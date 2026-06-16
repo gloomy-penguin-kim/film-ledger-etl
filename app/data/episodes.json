@@ -1,0 +1,250 @@
+[
+  {
+    "id": "tt31632368",
+    "titleText": {
+      "text": "Step Into My Office"
+    },
+    "releaseDate": {
+      "day": 25,
+      "month": 5,
+      "year": 2026
+    },
+    "ratingsSummary": {
+      "aggregateRating": 7.9
+    },
+    "plot": {
+      "plotText": {
+        "plainText": "It wont conclude the way you expect."
+      }
+    },
+    "primaryImage": {
+      "url": "https://m.media-amazon.com/images/M/MV5BMWJlYTdjY2UtZjM3My00YzQ1LWEwMmEtNTExMTg4MzEzODQwXkEyXkFqcGc@._V1_.jpg"
+    },
+    "runtime": {
+      "seconds": 2820
+    },
+    "series": {
+      "episodeNumber": {
+        "episodeNumber": 1,
+        "seasonNumber": 1
+      }
+    }
+  },
+  {
+    "id": "tt32365977",
+    "titleText": {
+      "text": "Tread Lightly"
+    },
+    "releaseDate": {
+      "day": 25,
+      "month": 5,
+      "year": 2026
+    },
+    "ratingsSummary": {
+      "aggregateRating": 8
+    },
+    "plot": {
+      "plotText": {
+        "plainText": "You're an investigator; investigate."
+      }
+    },
+    "primaryImage": {
+      "url": "https://m.media-amazon.com/images/M/MV5BZGVhMDk0YzUtMTUwNi00N2FjLThkM2MtZDUwMDJhNjM3ZDM0XkEyXkFqcGc@._V1_.jpg"
+    },
+    "runtime": {
+      "seconds": 2580
+    },
+    "series": {
+      "episodeNumber": {
+        "episodeNumber": 2,
+        "seasonNumber": 1
+      }
+    }
+  },
+  {
+    "id": "tt33452921",
+    "titleText": {
+      "text": "Double Cross"
+    },
+    "releaseDate": {
+      "day": 25,
+      "month": 5,
+      "year": 2026
+    },
+    "ratingsSummary": {
+      "aggregateRating": 8.3
+    },
+    "plot": {
+      "plotText": {
+        "plainText": "The quicker you prove it, the quicker they die."
+      }
+    },
+    "primaryImage": {
+      "url": "https://m.media-amazon.com/images/M/MV5BNmFhNjg4ZTktNGVmZC00ZTdkLWJjNWEtN2YwNGE2YzFjMWU5XkEyXkFqcGc@._V1_.jpg"
+    },
+    "runtime": {
+      "seconds": 2820
+    },
+    "series": {
+      "episodeNumber": {
+        "episodeNumber": 3,
+        "seasonNumber": 1
+      }
+    }
+  },
+  {
+    "id": "tt33452926",
+    "titleText": {
+      "text": "A Mistake I'll Never Make Again"
+    },
+    "releaseDate": {
+      "day": 25,
+      "month": 5,
+      "year": 2026
+    },
+    "ratingsSummary": {
+      "aggregateRating": 8.4
+    },
+    "plot": {
+      "plotText": {
+        "plainText": "I don't know, I think he's still got it."
+      }
+    },
+    "primaryImage": {
+      "url": "https://m.media-amazon.com/images/M/MV5BNTZjMGRiNzAtMmY0MS00YjY2LTkyODgtMGM4ZGI0Y2I3YTBiXkEyXkFqcGc@._V1_.jpg"
+    },
+    "runtime": {
+      "seconds": 2940
+    },
+    "series": {
+      "episodeNumber": {
+        "episodeNumber": 4,
+        "seasonNumber": 1
+      }
+    }
+  },
+  {
+    "id": "tt33498865",
+    "titleText": {
+      "text": "Betrayal"
+    },
+    "releaseDate": {
+      "day": 25,
+      "month": 5,
+      "year": 2026
+    },
+    "ratingsSummary": {
+      "aggregateRating": 8.2
+    },
+    "plot": {
+      "plotText": {
+        "plainText": "Careful is for stock tips and hot sauce."
+      }
+    },
+    "primaryImage": {
+      "url": "https://m.media-amazon.com/images/M/MV5BNDgwN2NkYjQtY2JiNi00ZmJhLTlhOGQtNzRhYmQzNThkMDQzXkEyXkFqcGc@._V1_.jpg"
+    },
+    "runtime": {
+      "seconds": 2940
+    },
+    "series": {
+      "episodeNumber": {
+        "episodeNumber": 5,
+        "seasonNumber": 1
+      }
+    }
+  },
+  {
+    "id": "tt33498870",
+    "titleText": {
+      "text": "Nightmare on a Gurney"
+    },
+    "releaseDate": {
+      "day": 25,
+      "month": 5,
+      "year": 2026
+    },
+    "ratingsSummary": {
+      "aggregateRating": 8.5
+    },
+    "plot": {
+      "plotText": {
+        "plainText": "If you haven't found the answer, it's because there isn't one."
+      }
+    },
+    "primaryImage": {
+      "url": "https://m.media-amazon.com/images/M/MV5BYjEzYTViNTYtNzVkMC00NWFiLWJmYTQtYTVhYTFmMTA3ZTE0XkEyXkFqcGc@._V1_.jpg"
+    },
+    "runtime": {
+      "seconds": 2580
+    },
+    "series": {
+      "episodeNumber": {
+        "episodeNumber": 6,
+        "seasonNumber": 1
+      }
+    }
+  },
+  {
+    "id": "tt33498878",
+    "titleText": {
+      "text": "Nobody's Hero"
+    },
+    "releaseDate": {
+      "day": 25,
+      "month": 5,
+      "year": 2026
+    },
+    "ratingsSummary": {
+      "aggregateRating": 8.7
+    },
+    "plot": {
+      "plotText": {
+        "plainText": "I can't protect you when I'm dead."
+      }
+    },
+    "primaryImage": {
+      "url": "https://m.media-amazon.com/images/M/MV5BZWU0ZjI5ZDYtZTlhYS00ZGMwLThiOTctYTkyNjU5NWY2NWY2XkEyXkFqcGc@._V1_.jpg"
+    },
+    "runtime": {
+      "seconds": 2580
+    },
+    "series": {
+      "episodeNumber": {
+        "episodeNumber": 7,
+        "seasonNumber": 1
+      }
+    }
+  },
+  {
+    "id": "tt33498883",
+    "titleText": {
+      "text": "The Man in the Mask"
+    },
+    "releaseDate": {
+      "day": 25,
+      "month": 5,
+      "year": 2026
+    },
+    "ratingsSummary": {
+      "aggregateRating": 9
+    },
+    "plot": {
+      "plotText": {
+        "plainText": "Gee whiz, what's a down-on-his-luck private investigator to do?"
+      }
+    },
+    "primaryImage": {
+      "url": "https://m.media-amazon.com/images/M/MV5BNDgxNzQyNjQtMWI1NC00OGE0LWIxMWEtMDc5MzFkYWE4MWUzXkEyXkFqcGc@._V1_.jpg"
+    },
+    "runtime": {
+      "seconds": 2880
+    },
+    "series": {
+      "episodeNumber": {
+        "episodeNumber": 8,
+        "seasonNumber": 1
+      }
+    }
+  }
+]

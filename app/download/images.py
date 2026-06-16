@@ -26,7 +26,7 @@ def encode_base64(text):
     return base64.b64encode(text.encode('utf-8')).decode('ascii')
 
 
-def format_image(db,
+def format_image(conn,
                  s3,
                  source_url,
                  result,
@@ -70,7 +70,7 @@ def format_image(db,
         filename = f"{image_asset_id}.webp"
 
         object_key = path_str + "/" + filename
-        public_domain = os.environ.get("CLOUDFLARE_ENDPOINT")
+        public_domain = os.environ.get("CLOUDFLARE_PUBLIC_URL")
 
         if object_key and public_domain:
             public_url = f"https://{public_domain}/{object_key}"
@@ -103,18 +103,19 @@ def format_image(db,
                         "sha256": str(sha256),
                         "byte_size": str(byte_size),
                         "image_asset_id": str(image_asset_id),
+                        "object_key": object_key,
                         "quality": str(quality),
                         }
             try:
                 response = s3.head_object(Bucket=s3_bucket, Key=object_key)
-                print(response["Metadata"])
+                response_meta = response["Metadata"]
 
                 s3.copy_object(
                     Bucket=s3_bucket,
                     Key=object_key,
                     CopySource={"Bucket": s3_bucket, "Key": object_key},
                     ContentType=content_type,
-                    Metadata=metadata,
+                    Metadata=response_meta|metadata,
                     MetadataDirective="REPLACE",
                 )
             except ClientError as e:
@@ -125,6 +126,8 @@ def format_image(db,
                     ContentType=content_type,
                     Metadata=metadata,
                 )
+
+            print("public_url", public_url)
 
         except Exception as e:
             error_message = str(e)
@@ -137,7 +140,7 @@ def format_image(db,
 
     status = 'failed' if error_message else 'cached'
     current_time = datetime.now(timezone.utc)
-    with db.conn.execute("""
+    with conn.execute("""
             INSERT INTO image_variant (image_asset_id, variant_id, storage_provider, storage_bucket,
                                        object_key, public_url, content_type, width, height,
                                        byte_size, sha256, status, error_message,
@@ -180,7 +183,7 @@ def format_image(db,
                 "cached_at": current_time if not error_message else None,
                 "updated_at": current_time,
             }) as cur:
-        db.conn.commit()
+        conn.commit()
         return cur.fetchone()[0]
 
 
@@ -208,15 +211,13 @@ def loop_through(db, s3, results, save_download=False):
                 print(f"path_str: {variant_needed["path_str"]}")
                 original_content = content
                 if variant_needed.get("needs_variant"):
-                    image_asset_id = format_image(db=conn,
+                    image_asset_id = format_image(conn=conn,
                                  s3=s3,
                                  source_url=source_url,
                                  result=variant_needed,
                                  content=original_content,
                                  content_type=content_type,
                                  save_download=save_download,)
-            print("")
-            print("")
 
         except Exception as e:
             error_message = str(e)
@@ -255,6 +256,9 @@ def loop_through(db, s3, results, save_download=False):
         if status == "failed":
             print("\n", "*"*80, "failed", "*"*80, "\n")
             quit()
+
+        print("")
+        print("")
 
 
 def download_image(url):

@@ -83,7 +83,6 @@ def upsert_streaming_availability(
                 owner_id=provider_id,
                 image_asset_id=image_asset_id,
                 image_kind="provider_logo",
-                is_primary=True,
             )
 
 def upsert_image_asset(
@@ -91,7 +90,7 @@ def upsert_image_asset(
     source_provider: str | None,
     source_url: str,
     width: int | None = None,
-    height: int | None = None,
+    height: int | None = None
 ) -> int:
     if not source_url:
         raise ValueError("source_url is required for image_asset")
@@ -102,7 +101,7 @@ def upsert_image_asset(
             source_url,
             source_width,
             source_height,
-            status,
+            status, 
             last_checked_at,
             updated_at
         )
@@ -119,7 +118,7 @@ def upsert_image_asset(
         source_provider,
         source_url,
         width,
-        height,
+        height
     )) as cur:
         result = cur.fetchone()
 
@@ -134,62 +133,26 @@ def attach_image_asset(
     owner_id: int,
     image_asset_id: int,
     image_kind: str,
-    is_primary: bool = True,
-    sort_order: int = 0,
+    description: str | None = None,
 ) -> None:
     conn.execute("""
         INSERT INTO image_asset_link (
             image_asset_id,
             owner_type,
             owner_id,
-            image_kind,
-            is_primary,
-            sort_order,
+            image_kind, 
+            description, 
             created_at,
             updated_at
         )
-        VALUES (%s, %s, %s, %s, %s, %s, now(), now())
+        VALUES (%s, %s, %s, %s, %s, now(), now())
         ON CONFLICT (owner_type, owner_id, image_kind, image_asset_id)
-        DO UPDATE SET
-            is_primary = EXCLUDED.is_primary,
-            sort_order = EXCLUDED.sort_order,
-            updated_at = now();
+        DO UPDATE SET description = EXCLUDED.description;
     """, (
         image_asset_id,
         owner_type,
         owner_id,
         image_kind,
-        is_primary,
-        sort_order,
+        description
     ))
 
-
-def upsert_media_poster_image(
-    conn,
-    media_id: int,
-    media: dict[str, Any],
-) -> int | None:
-    dims = media.get("image_dimensions") or {}
-    source_url = media.get("poster_url")
-
-    if not source_url:
-        return None
-
-    image_asset_id = upsert_image_asset(
-        conn=conn,
-        source_provider="imdb" if media.get("imdb_url") else "unknown",
-        source_url=source_url,
-        width=dims.get("width"),
-        height=dims.get("height"),
-    )
-
-    attach_image_asset(
-        conn=conn,
-        owner_type="media",
-        owner_id=media_id,
-        image_asset_id=image_asset_id,
-        image_kind="poster",
-        is_primary=True,
-    )
-
-    return image_asset_id

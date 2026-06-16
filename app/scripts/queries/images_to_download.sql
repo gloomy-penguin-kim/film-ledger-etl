@@ -7,7 +7,8 @@ WITH needed AS (
         ial.owner_id,
         ial.image_kind,
 
-        COALESCE(m.media_title, p.person_name, pp.provider_name) as description,
+        --COALESCE(m.media_title, p.person_name, pp.provider_name) as description,
+        m.media_title as description,
 
         v.variant_id,
         v.path_str,
@@ -24,7 +25,9 @@ WITH needed AS (
             OR iv.status <> 'cached'
             OR iv.cached_at IS NULL
             OR iv.cached_at <= NOW() - INTERVAL '6 months'
-        ) AS needs_variant
+        ) AS needs_variant,
+
+        m.raw_json
 
     FROM image_asset ia
     JOIN image_asset_link ial
@@ -35,17 +38,21 @@ WITH needed AS (
         ON iv.image_asset_id = ia.image_asset_id
        AND iv.variant_id = v.variant_id
 
-    left outer join media m
+    join media m
         on m.media_id = ial.owner_id and
             ial.owner_type = 'media'
 
-    left outer join person p
-        on p.person_id = ial.owner_id and
-            ial.owner_type = 'people'
-
-    left outer join provider pp
-        on pp.provider_id = ial.owner_id and
-            ial.owner_type = 'provider'
+--     left outer join media m
+--         on m.media_id = ial.owner_id and
+--             ial.owner_type = 'media'
+--
+--     left outer join person p
+--         on p.person_id = ial.owner_id and
+--             ial.owner_type = 'people'
+--
+--     left outer join provider pp
+--         on pp.provider_id = ial.owner_id and
+--             ial.owner_type = 'provider'
 
     WHERE
         (
@@ -57,7 +64,11 @@ WITH needed AS (
 )
 
 SELECT
-    source_url,
+    owner_type,
+    owner_id,
+    image_kind,
+    description,
+    source_url, raw_json,
     jsonb_agg(
         jsonb_build_object(
             'description', description,
@@ -75,8 +86,8 @@ SELECT
             'cached_at', cached_at,
             'needs_variant', needs_variant
         )
-        ORDER BY owner_type, owner_id, image_kind, path_str
+        ORDER BY owner_type, owner_id, image_kind
     ) AS variants_needed
 FROM needed
-GROUP BY source_url
-ORDER BY source_url;
+GROUP BY owner_type, owner_id, description, source_url, image_kind, raw_json
+ORDER BY owner_type, owner_id, description, source_url, image_kind, raw_json
