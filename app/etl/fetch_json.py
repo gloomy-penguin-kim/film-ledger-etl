@@ -469,7 +469,7 @@ class ImdbClient:
                 reviews(first: 1) {
                   total
                 }
-                connections(first: 5) {
+                connections(first: 10) {
                   edges {
                     node {
                       associatedTitle {
@@ -487,7 +487,7 @@ class ImdbClient:
                     }
                   }
                 }
-                moreLikeThisTitles(first: 8) {
+                moreLikeThisTitles(first: 10) {
                   edges {
                     node {
                       id

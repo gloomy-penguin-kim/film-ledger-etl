@@ -3,7 +3,11 @@ from app.etl.upsert_images import insert_image
 from typing import Any
 
 def upsert_similar_titles(conn, media_id: int, media: dict[str, Any]) -> None:
-    for similar in (media.get("similar_titles") or []):
+     similar_titles = media.get("similar_titles") or []
+
+     print(f"{len(similar_titles)} similar_titles")
+
+     for similar in similar_titles:
         similar_id = similar.get("id").strip()
         poster_url = similar.get("poster_url")
 
@@ -14,13 +18,14 @@ def upsert_similar_titles(conn, media_id: int, media: dict[str, Any]) -> None:
             INSERT INTO media_similar_titles (media_id,
                                               related_media_id,
                                               related_media_imdb_id)
-            SELECT %(media_id)s,
-                   m.media_id,
-                   %(related_media_imdb_id)s
+            SELECT %(media_id)s as media_id,
+                   m.media_id as related_media_id,
+                   %(related_media_imdb_id)s as related_media_imdb_id
             FROM (SELECT %(related_media_imdb_id)s AS imdb_id) imdb
                      LEFT JOIN media m
                                ON m.media_imdb_id = imdb.imdb_id
-
+            WHERE m.media_type = 'Movie'
+            LIMIT 1 
             ON CONFLICT (media_id, related_media_imdb_id)
                 DO UPDATE SET related_media_id = EXCLUDED.related_media_id
 
@@ -50,6 +55,8 @@ def upsert_similar_titles(conn, media_id: int, media: dict[str, Any]) -> None:
 
 def upsert_connections(conn, media_id: int, media: dict[str, Any]) -> None:
     connections = media.get("connections") or []
+
+    print(f"{len(connections)} connections")
 
     for connection in connections:
         connection_name = connection.get("relationship").strip()
@@ -82,6 +89,7 @@ def upsert_connections(conn, media_id: int, media: dict[str, Any]) -> None:
                 FROM   (select %(related_media_imdb_id)s as imdb_id) as imdb 
                         left outer join media m 
                             on m.media_imdb_id = imdb.imdb_id
+                WHERE m.media_type = 'Movie'
                 LIMIT 1 
             ON CONFLICT (media_id, related_media_imdb_id, connection_id)
             DO NOTHING;

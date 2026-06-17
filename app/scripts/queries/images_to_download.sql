@@ -149,6 +149,72 @@ UNION
             OR iv.cached_at IS NULL
             OR iv.cached_at <= NOW() - INTERVAL '6 months'
         )
+
+
+union
+
+
+select distinct
+        ia.image_asset_id,
+        ia.source_url,
+
+        ial.owner_type,
+        ial.owner_id,
+        ial.image_kind,
+
+        m.related_media_title as description,
+
+        v.variant_id,
+        v.path_str,
+        v.target_width,
+        v.target_height,
+        v.is_cropped,
+
+        iv.image_variant_id,
+        iv.status,
+        iv.cached_at,
+
+        (
+            iv.image_variant_id IS NULL
+            OR iv.status <> 'cached'
+            OR iv.cached_at IS NULL
+            OR iv.cached_at <= NOW() - INTERVAL '6 months'
+        ) AS needs_variant
+
+    FROM image_asset ia
+    JOIN image_asset_link ial
+        ON ial.image_asset_id = ia.image_asset_id
+    JOIN variant v
+        ON v.image_kind = ial.image_kind
+    LEFT JOIN image_variant iv
+        ON iv.image_asset_id = ia.image_asset_id
+       AND iv.variant_id = v.variant_id
+    join (
+          SELECT
+            m.media_id,
+            m.media_title,
+            mc.related_media_id,
+            c.connection_name,
+            related.media_title AS related_media_title,
+            related.media_type
+          FROM
+            media m
+            JOIN trending_snapshot_recent ts ON ts.media_id = m.media_id
+            JOIN media_connection mc ON m.media_id = mc.media_id
+            JOIN connection c ON c.connection_id = mc.connection_id
+            JOIN media related ON related.media_id = mc.related_media_id
+          where related.media_type = 'Movie')  m
+        on m.media_id = ial.owner_id and
+            ial.owner_type = 'media'
+
+    WHERE  v.active = true and
+        (
+            iv.image_variant_id IS NULL
+            OR iv.status <> 'cached'
+            OR iv.cached_at IS NULL
+            OR iv.cached_at <= NOW() - INTERVAL '6 months'
+        )
+
 )
 
 SELECT
