@@ -42,7 +42,7 @@ def upsert_similar_titles(conn, media_id: int, media: dict[str, Any]) -> None:
         try:
             result = results.fetchone()
 
-            if not result: continue
+            if not result or not poster_url: continue
 
             related_media_id = result[0]
 
