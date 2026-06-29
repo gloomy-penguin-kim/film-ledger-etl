@@ -7,6 +7,7 @@ def upsert_similar_titles(conn, media_id: int, media: dict[str, Any]) -> None:
 
      print(f"{len(similar_titles)} similar_titles")
 
+     st = 0
      for similar in similar_titles:
         similar_id = similar.get("id").strip()
         poster_url = similar.get("poster_url")
@@ -24,8 +25,7 @@ def upsert_similar_titles(conn, media_id: int, media: dict[str, Any]) -> None:
             FROM (SELECT %(related_media_imdb_id)s AS imdb_id) imdb
                      LEFT JOIN media m
                                ON m.media_imdb_id = imdb.imdb_id
-            WHERE m.media_type = 'Movie'
-            LIMIT 1 
+            WHERE m.media_type = 'Movie' 
             ON CONFLICT (media_id, related_media_imdb_id)
                 DO UPDATE SET related_media_id = EXCLUDED.related_media_id
 
@@ -39,16 +39,26 @@ def upsert_similar_titles(conn, media_id: int, media: dict[str, Any]) -> None:
 
         if not results: continue
 
-        related_media_id = results.fetchone()[0]
+        try:
+            result = results.fetchone()
 
-        # if poster_url and related_media_id:
-        #     insert_image(conn, {
-        #                  "owner_id"   : related_media_id,
-        #                  "owner_type" : "media",
-        #                  "image_kind" : "poster",
-        #                  "source_url" : poster_url,
-        #                  "is_primary" : True
-        #     })
+            if not result: continue
+
+            related_media_id = result[0]
+
+            if poster_url and related_media_id:
+                insert_image(conn, {
+                             "owner_id"   : related_media_id,
+                             "owner_type" : "media",
+                             "image_kind" : "poster",
+                             "source_url" : poster_url,
+                             "is_primary" : True
+                })
+        except Exception as e:
+            print("-------------------------------------------------")
+            print(e)
+            print("-------------------------------------------------")
+            raise Exception("here")
 
 
 

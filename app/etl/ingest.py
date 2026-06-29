@@ -11,7 +11,7 @@ from app.etl.upsert_episodes import upsert_episode_list
 from app.etl.upsert_images import insert_image
 from app.etl.upsert_media import upsert_media
 from app.etl.upsert_trending import upsert_trending_snapshot
-from app.etl.upsert_people import upsert_people, upsert_enhanced
+from app.etl.upsert_people import upsert_people
 from app.etl.upsert_tables import upsert_keywords, upsert_languages, upsert_genres, upsert_countries
 from app.etl.upsert_similar_titles import upsert_similar_titles, upsert_connections
 from app.etl.upsert_streaming import upsert_streaming_availability
