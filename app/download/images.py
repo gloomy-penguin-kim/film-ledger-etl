@@ -11,7 +11,7 @@ import argparse
 import hashlib
 import os
 
-from app.etl.db_conn import DatabaseConn
+from app.trending.db_conn import DatabaseConn
 from app.download.cloudflare import load_image_variant_table_from_cloudflare
 
 load_dotenv()
@@ -348,7 +348,7 @@ if __name__ == "__main__":
     parser.add_argument("-i","--images", dest='images', action='store_true', help='reload image_variant from cloudflare')
     parser.add_argument("-s","--schema", dest='schema', action='store_true', help='run schema.sql')
     parser.add_argument("-v","--view", dest='view', action='store_true', help='create media_full_view')
-    parser.add_argument("-r","--run-test", dest='run_test', nargs='?', default=0, type=int, help='run app.etl.ingest --count 10')
+    parser.add_argument("-r","--run-test", dest='run_test', nargs='?', default=0, type=int, help='run app.trending.ingest --count 10')
 
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument("--no-download", dest='no_download', action='store_true', help='do NOT run the download process')
@@ -380,7 +380,7 @@ if __name__ == "__main__":
         args.images = True
 
     if args.run_test and args.run_test > 0:
-        from app.etl.ingest import ingest_trending
+        from app.trending.ingest import ingest_trending
         ingest_trending(count=args.run_test, force=True)
 
     if args.images:

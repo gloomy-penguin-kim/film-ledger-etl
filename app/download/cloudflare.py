@@ -2,7 +2,7 @@ import boto3
 import os
 from dotenv import load_dotenv
 
-from app.etl.db_conn import DatabaseConn
+from app.trending.db_conn import DatabaseConn
 
 load_dotenv()
 

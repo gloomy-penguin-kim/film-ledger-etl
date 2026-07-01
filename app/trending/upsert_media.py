@@ -4,7 +4,7 @@ import pprint
 
 from datetime import datetime, timezone
 
-from app.etl.upsert_images import insert_image
+from app.trending.upsert_images import insert_image
 
 
 def upsert_media(conn, media: dict[str, Any], full_download=False) -> int | None:

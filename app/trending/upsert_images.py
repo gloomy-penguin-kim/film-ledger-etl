@@ -1,6 +1,6 @@
 from typing import Any
 
-from app.etl.upsert_streaming import upsert_image_asset, attach_image_asset
+from app.trending.upsert_streaming import upsert_image_asset, attach_image_asset
 
 
 

@@ -4,17 +4,17 @@ import json
 import pprint
 import traceback
 
-from app.etl.fetch_json import ImdbClient
-from app.etl.db_conn import DatabaseConn
-from app.etl.insert_raw_payload import save_raw_payload, mark_processed, get_last_processed_payload, update_movie
-from app.etl.upsert_episodes import upsert_episode_list
-from app.etl.upsert_images import insert_image
-from app.etl.upsert_media import upsert_media
-from app.etl.upsert_trending import upsert_trending_snapshot
-from app.etl.upsert_people import upsert_people
-from app.etl.upsert_tables import upsert_keywords, upsert_languages, upsert_genres, upsert_countries
-from app.etl.upsert_similar_titles import upsert_similar_titles, upsert_connections
-from app.etl.upsert_streaming import upsert_streaming_availability
+from app.trending.fetch_json import ImdbClient
+from app.trending.db_conn import DatabaseConn
+from app.trending.insert_raw_payload import save_raw_payload, mark_processed, get_last_processed_payload, update_movie
+from app.trending.upsert_episodes import upsert_episode_list
+from app.trending.upsert_images import insert_image
+from app.trending.upsert_media import upsert_media
+from app.trending.upsert_trending import upsert_trending_snapshot
+from app.trending.upsert_people import upsert_people
+from app.trending.upsert_tables import upsert_keywords, upsert_languages, upsert_genres, upsert_countries
+from app.trending.upsert_similar_titles import upsert_similar_titles, upsert_connections
+from app.trending.upsert_streaming import upsert_streaming_availability
 
 imdb_client = ImdbClient()
 db = DatabaseConn() 
@@ -115,13 +115,14 @@ def run_update(db,
                process_images=True,
                ) -> int | None:
     if not media_imdb_id: return None
-    conn = db.connect()
     media_id = None
 
     full_download = False if not similar_titles or not connections else True
 
     error = ""
     try:
+        conn = db.connect()
+
         error = f"media_imdb_id = {media_imdb_id}\n"
         media_id, needs_a_refresh = update_movie(conn, media_imdb_id)
 
@@ -149,10 +150,13 @@ def run_update(db,
 
             conn.commit()
 
-            error += f"step: connections\n"
-            if connections: upsert_connections(conn, media_id, details)
-            error += f"step: similar_titles\n"
-            if similar_titles: upsert_similar_titles(conn, media_id, details)
+            if connections:
+                error += f"step: connections\n"
+                upsert_connections(conn, media_id, details)
+
+            if similar_titles:
+                error += f"step: similar_titles\n"
+                upsert_similar_titles(conn, media_id, details)
 
             if episodes and details.get("is_series"):
                 error += f"step: episodes\n"
@@ -179,6 +183,8 @@ def run_update(db,
         print("e:", e)
         print("error:", error)
         traceback.print_exc()
+
+    db.conn.commit()
 
     return media_id
 
@@ -233,6 +239,7 @@ def ingest_trending(force: bool=False,
                                   force=force,
                                   similar_titles=True,
                                   connections=True,
+                                  episodes=True
                                   )
 
             trending_arr.append({"media_id": media_id, "rank": movie.get("rank")})

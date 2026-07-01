@@ -1,7 +1,7 @@
 
 from typing import Any
 
-from app.etl.upsert_images import insert_image
+from app.trending.upsert_images import insert_image
 
 
 def upsert_keywords(conn, media_id: int, media: dict[str, Any]) -> None:
