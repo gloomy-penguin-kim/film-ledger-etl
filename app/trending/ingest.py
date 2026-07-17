@@ -199,27 +199,29 @@ def ingest_trending(force: bool=False,
         version=VERSION)
 
     if result and not force:
-        if result.get("processed_at"): 
+        if result.get("processed_at"):
             print("Latest payload already processed")
-            return 
-        else: 
+            return
+        else:
             print("Using last fetched payload that has not been processed yet.")
             data = result.get("payload")
             raw_id = result.get("id")
-    else: 
-        data = imdb_client.get_trending_movies(count=count) 
+    else:
+        data = imdb_client.get_trending_movies(count=count)
         raw_id = save_raw_payload(
-            conn=db, 
-            source="imdb_trending", 
-            version=VERSION, 
+            conn=db,
+            source="imdb_trending",
+            version=VERSION,
             payload=json.dumps(data),
             count=count,
         )
-    
+
     movies = imdb_client.extract_movie_info(data)
     # movies = [{ "id": "tt0118276", "rank": 1 }]
 
-    if count > len(movies):
+    print(len(movies))
+
+    if count and count > len(movies):
         print(f"Truncated movies count to {count} rows.")
         movies = movies[:count]
 
@@ -239,7 +241,7 @@ def ingest_trending(force: bool=False,
                                   force=force,
                                   similar_titles=True,
                                   connections=True,
-                                  episodes=True
+                                  episodes=False
                                   )
 
             trending_arr.append({"media_id": media_id, "rank": movie.get("rank")})

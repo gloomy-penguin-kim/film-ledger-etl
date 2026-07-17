@@ -7,6 +7,10 @@ def upsert_similar_titles(conn, media_id: int, media: dict[str, Any]) -> None:
 
      print(f"{len(similar_titles)} similar_titles")
 
+     if len(similar_titles) > 0:
+         sql = "delete from media_similar_titles where media_id in (%s)"
+         conn.execute(sql, (media_id,))
+
      st = 0
      for similar in similar_titles:
         similar_id = similar.get("id").strip()
