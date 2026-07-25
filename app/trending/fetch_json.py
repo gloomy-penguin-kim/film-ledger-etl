@@ -1213,9 +1213,12 @@ class ImdbClient:
               
               provider_code = (option.get("provider") or {}).get("id", {})
               provider_name = (option.get("provider") or {}).get("refTagFragment", {})
-              provider_image = (option.get("provider") or {}).get("logos", {}).get("slate", {}).get("url")
-              provider_image_height = (option.get("provider") or {}).get("logos", {}).get("slate", {}).get("height")
-              provider_image_width = (option.get("provider") or {}).get("logos", {}).get("slate", {}).get("width")
+
+              provider_state = (((option.get("provider") or {}).get("logos") or {}).get("slate") or {})
+              provider_image = provider_state.get("url") or None
+              #provider_image = ((option.get("provider") or {}).get("logos", {}).get("slate") or {}).get("url", {})
+              provider_image_height = provider_state.get("height") or None
+              provider_image_width = provider_state.get("width") or None
               provider_title = option.get("title", {}).get("value")
               provider_desc = (option.get("shortDescription") or {}).get("value")
               provider_link = option.get("link")   
